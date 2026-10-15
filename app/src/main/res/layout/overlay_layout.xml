@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#CC000000"
+    android:padding="8dp">
+    <TextView android:id="@+id/tvDragBar"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:text="Mouse"
+        android:textColor="#FFF"
+        android:gravity="center"
+        android:background="#336" />
+    <View android:id="@+id/trackpad"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginTop="6dp"
+        android:background="#2A2A4A" />
+    <LinearLayout android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+        <Button android:id="@+id/btnLeftClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Click" />
+        <Button android:id="@+id/btnDoubleClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Doppio" />
+        <Button android:id="@+id/btnLongClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Lungo" />
+    </LinearLayout>
+</LinearLayout>
