@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/overlayRoot"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#CC000000"
+    android:padding="8dp">
+
+    <!-- Barra del titolo (per trascinare il pannello) -->
+    <TextView
+        android:id="@+id/tvDragBar"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:text="🖱️ Mouse  ≡"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:gravity="center"
+        android:background="#333366" />
+
+    <!-- Trackpad virtuale -->
+    <View
+        android:id="@+id/trackpad"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginTop="6dp"
+        android:background="#2A2A4A" />
+
+    <!-- Pulsanti click -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnLeftClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Click"
+            android:textSize="12sp"
+            android:layout_marginEnd="3dp" />
+
+        <Button
+            android:id="@+id/btnDoubleClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Doppio"
+            android:textSize="12sp"
+            android:layout_marginEnd="3dp" />
+
+        <Button
+            android:id="@+id/btnLongClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Lungo"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+</LinearLayout>
