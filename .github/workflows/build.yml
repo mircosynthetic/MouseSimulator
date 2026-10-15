@@ -126,6 +126,7 @@ jobs:
           cat > app/src/main/res/values/strings.xml << 'ENDFILE'
           <resources>
               <string name="app_name">Mouse Simulator</string>
+              <string name="accessibility_description">Simula click mouse</string>
           </resources>
           ENDFILE
 
