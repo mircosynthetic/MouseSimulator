@@ -141,25 +141,12 @@ jobs:
                   android:textColor="#FFFFFF"
                   android:textSize="28sp"
                   android:textStyle="bold"
-                  android:layout_marginBottom="16dp" />
-              <TextView android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="Freccia + Click sul tuo schermo"
-                  android:textColor="#AAAAAA"
-                  android:textSize="16sp"
                   android:layout_marginBottom="32dp" />
               <Button android:id="@+id/btnStart"
                   android:layout_width="250dp"
                   android:layout_height="60dp"
                   android:text="Avvia Mouse"
-                  android:textSize="18sp"
-                  android:layout_marginBottom="16dp" />
-              <Button android:id="@+id/btnStop"
-                  android:layout_width="250dp"
-                  android:layout_height="60dp"
-                  android:text="Ferma Mouse"
-                  android:textSize="18sp"
-                  android:enabled="false" />
+                  android:textSize="18sp" />
           </LinearLayout>
           ENDFILE
 
@@ -170,7 +157,6 @@ jobs:
           import android.os.Build;
           import android.os.Bundle;
           import android.provider.Settings;
-          import android.widget.Button;
           import android.widget.Toast;
           import androidx.appcompat.app.AppCompatActivity;
           public class MainActivity extends AppCompatActivity {
@@ -178,27 +164,19 @@ jobs:
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
-                  Button btnStart = findViewById(R.id.btnStart);
-                  Button btnStop = findViewById(R.id.btnStop);
-                  btnStart.setOnClickListener(v -> {
+                  findViewById(R.id.btnStart).setOnClickListener(v -> {
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
                           startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
                           return;
                       }
                       if (MouseAccessibilityService.getInstance() == null) {
                           startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                          Toast.makeText(this, "Attiva MouseSimulator in Accessibilita", Toast.LENGTH_LONG).show();
+                          Toast.makeText(this, "Attiva MouseSimulator", Toast.LENGTH_LONG).show();
                           return;
                       }
                       startService(new Intent(this, CursorService.class));
-                      btnStart.setEnabled(false);
-                      btnStop.setEnabled(true);
-                      Toast.makeText(this, "Freccia attiva!", Toast.LENGTH_SHORT).show();
-                  });
-                  btnStop.setOnClickListener(v -> {
-                      stopService(new Intent(this, CursorService.class));
-                      btnStart.setEnabled(true);
-                      btnStop.setEnabled(false);
+                      Toast.makeText(this, "Mouse avviato!", Toast.LENGTH_SHORT).show();
+                      finish();
                   });
               }
           }
@@ -253,7 +231,6 @@ jobs:
           import android.view.View;
           import android.view.WindowManager;
           import android.widget.Button;
-          import android.widget.FrameLayout;
           import android.widget.LinearLayout;
           import android.widget.TextView;
 
@@ -264,7 +241,7 @@ jobs:
               private WindowManager.LayoutParams cursorParams;
               private WindowManager.LayoutParams controlParams;
               private float cursorX, cursorY;
-              private int screenWidth, screenHeight;
+              private int screenW, screenH;
 
               @Override public IBinder onBind(Intent i) { return null; }
 
@@ -272,21 +249,25 @@ jobs:
               public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-                  screenWidth = getResources().getDisplayMetrics().widthPixels;
-                  screenHeight = getResources().getDisplayMetrics().heightPixels;
-                  cursorX = screenWidth / 2f;
-                  cursorY = screenHeight / 2f;
+                  screenW = getResources().getDisplayMetrics().widthPixels;
+                  screenH = getResources().getDisplayMetrics().heightPixels;
+                  cursorX = screenW / 2f;
+                  cursorY = screenH / 2f;
                   createCursor();
-                  createControlPanel();
+                  createPanel();
+              }
+
+              private int dp(int v) {
+                  return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
               }
 
               private void createCursor() {
-                  cursorView = new TextView(this);
-                  ((TextView) cursorView).setText("\u27A4");
-                  ((TextView) cursorView).setTextSize(TypedValue.COMPLEX_UNIT_SP, 40);
-                  ((TextView) cursorView).setTextColor(Color.RED);
-                  ((TextView) cursorView).setShadowLayer(8, 2, 2, Color.BLACK);
-
+                  TextView tv = new TextView(this);
+                  tv.setText("\u27A4");
+                  tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 48);
+                  tv.setTextColor(Color.RED);
+                  tv.setShadowLayer(10, 3, 3, Color.BLACK);
+                  cursorView = tv;
                   cursorParams = new WindowManager.LayoutParams(
                       WindowManager.LayoutParams.WRAP_CONTENT,
                       WindowManager.LayoutParams.WRAP_CONTENT,
@@ -299,49 +280,51 @@ jobs:
                   wm.addView(cursorView, cursorParams);
               }
 
-              private void createControlPanel() {
+              private void createPanel() {
+                  int pad = dp(10);
                   LinearLayout panel = new LinearLayout(this);
                   panel.setOrientation(LinearLayout.VERTICAL);
-                  panel.setPadding(8, 8, 8, 8);
+                  panel.setPadding(pad, pad, pad, pad);
                   GradientDrawable bg = new GradientDrawable();
-                  bg.setColor(0xDD000000);
-                  bg.setCornerRadius(20);
-                  bg.setStroke(2, 0xFF4444FF);
+                  bg.setColor(0xEE111133);
+                  bg.setCornerRadius(dp(16));
+                  bg.setStroke(dp(2), Color.CYAN);
                   panel.setBackground(bg);
 
                   TextView title = new TextView(this);
-                  title.setText("\uD83D\uDDB1\uFE0F Mouse");
-                  title.setTextColor(Color.WHITE);
-                  title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+                  title.setText("  \uD83D\uDDB1\uFE0F Mouse  ");
+                  title.setTextColor(Color.CYAN);
+                  title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
                   title.setGravity(Gravity.CENTER);
                   panel.addView(title);
 
                   View trackpad = new View(this);
-                  LinearLayout.LayoutParams tpParams = new LinearLayout.LayoutParams(
-                      dp(180), dp(120));
-                  tpParams.topMargin = dp(4);
-                  trackpad.setLayoutParams(tpParams);
+                  int tpW = dp(200);
+                  int tpH = dp(140);
+                  LinearLayout.LayoutParams tpLp = new LinearLayout.LayoutParams(tpW, tpH);
+                  tpLp.topMargin = dp(6);
+                  trackpad.setLayoutParams(tpLp);
                   GradientDrawable tpBg = new GradientDrawable();
-                  tpBg.setColor(0xFF2A2A5A);
-                  tpBg.setCornerRadius(10);
+                  tpBg.setColor(0xFF3333AA);
+                  tpBg.setCornerRadius(dp(10));
+                  tpBg.setStroke(dp(1), Color.CYAN);
                   trackpad.setBackground(tpBg);
                   panel.addView(trackpad);
 
-                  LinearLayout btnRow = new LinearLayout(this);
-                  btnRow.setOrientation(LinearLayout.HORIZONTAL);
-                  LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
-                      LinearLayout.LayoutParams.MATCH_PARENT, dp(44));
-                  rowParams.topMargin = dp(4);
-                  btnRow.setLayoutParams(rowParams);
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                      LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
+                  rowLp.topMargin = dp(6);
+                  row.setLayoutParams(rowLp);
 
-                  Button btnClick = makeButton("\uD83D\uDC46 Click");
-                  Button btnDouble = makeButton("\uD83D\uDC46\u200D\uD83D\uDC46 Doppio");
-                  Button btnLong = makeButton("\u270B Lungo");
-
-                  btnRow.addView(btnClick);
-                  btnRow.addView(btnDouble);
-                  btnRow.addView(btnLong);
-                  panel.addView(btnRow);
+                  Button bClick = mkBtn("Click");
+                  Button bDouble = mkBtn("Doppio");
+                  Button bLong = mkBtn("Lungo");
+                  row.addView(bClick);
+                  row.addView(bDouble);
+                  row.addView(bLong);
+                  panel.addView(row);
 
                   controlParams = new WindowManager.LayoutParams(
                       WindowManager.LayoutParams.WRAP_CONTENT,
@@ -350,94 +333,82 @@ jobs:
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                       PixelFormat.TRANSLUCENT);
                   controlParams.gravity = Gravity.TOP | Gravity.START;
-                  controlParams.x = 20;
-                  controlParams.y = screenHeight - dp(280);
-
-                  wm.addView(panel, controlParams);
+                  controlParams.x = screenW - tpW - dp(40);
+                  controlParams.y = dp(80);
                   controlView = panel;
+                  wm.addView(panel, controlParams);
 
-                  title.setOnTouchListener(new View.OnTouchListener() {
-                      private int ix, iy;
-                      private float tx, ty;
-                      @Override
-                      public boolean onTouch(View v, MotionEvent e) {
-                          if (e.getAction() == MotionEvent.ACTION_DOWN) {
-                              ix = controlParams.x; iy = controlParams.y;
-                              tx = e.getRawX(); ty = e.getRawY();
-                              return true;
-                          }
-                          if (e.getAction() == MotionEvent.ACTION_MOVE) {
-                              controlParams.x = ix + (int)(e.getRawX() - tx);
-                              controlParams.y = iy + (int)(e.getRawY() - ty);
-                              wm.updateViewLayout(controlView, controlParams);
-                              return true;
-                          }
-                          return false;
+                  title.setOnTouchListener((v, e) -> {
+                      if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                          v.setTag(new float[]{controlParams.x - e.getRawX(), controlParams.y - e.getRawY()});
+                          return true;
                       }
-                  });
-
-                  trackpad.setOnTouchListener(new View.OnTouchListener() {
-                      private float lx, ly;
-                      @Override
-                      public boolean onTouch(View v, MotionEvent e) {
-                          if (e.getAction() == MotionEvent.ACTION_DOWN) {
-                              lx = e.getRawX(); ly = e.getRawY();
-                              return true;
-                          }
-                          if (e.getAction() == MotionEvent.ACTION_MOVE) {
-                              cursorX += (e.getRawX() - lx) * 2.5f;
-                              cursorY += (e.getRawY() - ly) * 2.5f;
-                              cursorX = Math.max(0, Math.min(cursorX, screenWidth - 40));
-                              cursorY = Math.max(0, Math.min(cursorY, screenHeight - 40));
-                              cursorParams.x = (int) cursorX;
-                              cursorParams.y = (int) cursorY;
-                              wm.updateViewLayout(cursorView, cursorParams);
-                              lx = e.getRawX(); ly = e.getRawY();
-                              return true;
-                          }
-                          return false;
+                      if (e.getAction() == MotionEvent.ACTION_MOVE) {
+                          float[] d = (float[]) v.getTag();
+                          controlParams.x = (int)(e.getRawX() + d[0]);
+                          controlParams.y = (int)(e.getRawY() + d[1]);
+                          wm.updateViewLayout(controlView, controlParams);
+                          return true;
                       }
+                      return false;
                   });
 
-                  btnClick.setOnClickListener(v -> {
-                      MouseAccessibilityService s = MouseAccessibilityService.getInstance();
-                      if (s != null) s.performClick(cursorX + 20, cursorY + 20);
+                  trackpad.setOnTouchListener((v, e) -> {
+                      if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                          v.setTag(new float[]{e.getRawX(), e.getRawY()});
+                          return true;
+                      }
+                      if (e.getAction() == MotionEvent.ACTION_MOVE) {
+                          float[] l = (float[]) v.getTag();
+                          cursorX += (e.getRawX() - l[0]) * 2.5f;
+                          cursorY += (e.getRawY() - l[1]) * 2.5f;
+                          cursorX = Math.max(0, Math.min(cursorX, screenW - 60));
+                          cursorY = Math.max(0, Math.min(cursorY, screenH - 60));
+                          cursorParams.x = (int) cursorX;
+                          cursorParams.y = (int) cursorY;
+                          wm.updateViewLayout(cursorView, cursorParams);
+                          v.setTag(new float[]{e.getRawX(), e.getRawY()});
+                          return true;
+                      }
+                      return false;
                   });
-                  btnDouble.setOnClickListener(v -> {
-                      MouseAccessibilityService s = MouseAccessibilityService.getInstance();
-                      if (s != null) s.performDoubleClick(cursorX + 20, cursorY + 20);
-                  });
-                  btnLong.setOnClickListener(v -> {
-                      MouseAccessibilityService s = MouseAccessibilityService.getInstance();
-                      if (s != null) s.performLongClick(cursorX + 20, cursorY + 20);
-                  });
+
+                  bClick.setOnClickListener(v -> doClick(1));
+                  bDouble.setOnClickListener(v -> doClick(2));
+                  bLong.setOnClickListener(v -> doClick(3));
               }
 
-              private Button makeButton(String text) {
+              private void doClick(int type) {
+                  MouseAccessibilityService s = MouseAccessibilityService.getInstance();
+                  if (s == null) return;
+                  float x = cursorX + 30;
+                  float y = cursorY + 30;
+                  if (type == 1) s.performClick(x, y);
+                  else if (type == 2) s.performDoubleClick(x, y);
+                  else s.performLongClick(x, y);
+              }
+
+              private Button mkBtn(String txt) {
                   Button b = new Button(this);
-                  b.setText(text);
-                  b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+                  b.setText(txt);
+                  b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
                   b.setTextColor(Color.WHITE);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1);
-                  lp.setMargins(2, 0, 2, 0);
-                  b.setLayoutParams(lp);
-                  GradientDrawable bg = new GradientDrawable();
-                  bg.setColor(0xFF333366);
-                  bg.setCornerRadius(8);
-                  b.setBackground(bg);
                   b.setAllCaps(false);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                  lp.setMargins(dp(2), 0, dp(2), 0);
+                  b.setLayoutParams(lp);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(0xFF2244AA);
+                  g.setCornerRadius(dp(8));
+                  b.setBackground(g);
                   return b;
-              }
-
-              private int dp(int v) {
-                  return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
               }
 
               @Override
               public void onDestroy() {
                   super.onDestroy();
-                  if (cursorView != null) wm.removeView(cursorView);
-                  if (controlView != null) wm.removeView(controlView);
+                  try { if (cursorView != null) wm.removeView(cursorView); } catch (Exception e) {}
+                  try { if (controlView != null) wm.removeView(controlView); } catch (Exception e) {}
               }
           }
           ENDFILE
@@ -448,7 +419,7 @@ jobs:
       - name: Create Release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0
-          name: MouseSimulator v2 - Freccia + Click
-          body: Freccia rossa visibile + pannello click
+          tag_name: v3.0
+          name: MouseSimulator v3
+          body: Freccia rossa + pannello blu in alto a destra
           files: app/build/outputs/apk/debug/app-debug.apk
