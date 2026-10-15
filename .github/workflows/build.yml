@@ -222,7 +222,9 @@ jobs:
           package com.example.mousesimulator;
           import android.app.Service;
           import android.content.Intent;
+          import android.graphics.Canvas;
           import android.graphics.Color;
+          import android.graphics.Paint;
           import android.graphics.PixelFormat;
           import android.graphics.drawable.GradientDrawable;
           import android.os.IBinder;
@@ -263,23 +265,40 @@ jobs:
               }
 
               private void createCursor() {
-                  int size = dp(40);
-                  View dot = new View(this);
-                  GradientDrawable shape = new GradientDrawable();
-                  shape.setShape(GradientDrawable.OVAL);
-                  shape.setColor(Color.RED);
-                  shape.setStroke(dp(3), Color.WHITE);
-                  dot.setBackground(shape);
-                  dot.setElevation(dp(10));
-                  cursorView = dot;
+                  int size = dp(80);
+                  cursorView = new View(this) {
+                      private Paint paintOuter = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      private Paint paintInner = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      private Paint paintCross = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      {
+                          paintOuter.setColor(0xFFFF0000);
+                          paintOuter.setStyle(Paint.Style.FILL);
+                          paintInner.setColor(0xFFFFFF00);
+                          paintInner.setStyle(Paint.Style.FILL);
+                          paintCross.setColor(0xFF000000);
+                          paintCross.setStyle(Paint.Style.STROKE);
+                          paintCross.setStrokeWidth(dp(3));
+                      }
+                      @Override
+                      protected void onDraw(Canvas c) {
+                          int cx = getWidth() / 2;
+                          int cy = getHeight() / 2;
+                          int r = Math.min(cx, cy) - dp(4);
+                          c.drawCircle(cx, cy, r, paintOuter);
+                          c.drawCircle(cx, cy, r - dp(8), paintInner);
+                          c.drawCircle(cx, cy, r - dp(14), paintOuter);
+                          c.drawLine(cx - r, cy, cx + r, cy, paintCross);
+                          c.drawLine(cx, cy - r, cx, cy + r, paintCross);
+                      }
+                  };
                   cursorParams = new WindowManager.LayoutParams(
                       size, size,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                       PixelFormat.TRANSLUCENT);
                   cursorParams.gravity = Gravity.TOP | Gravity.START;
-                  cursorParams.x = (int) cursorX;
-                  cursorParams.y = (int) cursorY;
+                  cursorParams.x = (int) cursorX - size / 2;
+                  cursorParams.y = (int) cursorY - size / 2;
                   wm.addView(cursorView, cursorParams);
               }
 
@@ -294,12 +313,33 @@ jobs:
                   bg.setStroke(dp(2), Color.CYAN);
                   panel.setBackground(bg);
 
+                  LinearLayout titleRow = new LinearLayout(this);
+                  titleRow.setOrientation(LinearLayout.HORIZONTAL);
+                  titleRow.setGravity(Gravity.CENTER_VERTICAL);
+
                   TextView title = new TextView(this);
                   title.setText("  Mouse  ");
                   title.setTextColor(Color.CYAN);
                   title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-                  title.setGravity(Gravity.CENTER);
-                  panel.addView(title);
+                  LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+                  title.setLayoutParams(titleLp);
+                  titleRow.addView(title);
+
+                  Button btnClose = new Button(this);
+                  btnClose.setText("X");
+                  btnClose.setTextColor(Color.WHITE);
+                  btnClose.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+                  btnClose.setAllCaps(false);
+                  btnClose.setPadding(0, 0, 0, 0);
+                  LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(dp(36), dp(36));
+                  btnClose.setLayoutParams(closeLp);
+                  GradientDrawable closeBg = new GradientDrawable();
+                  closeBg.setColor(0xFFCC0000);
+                  closeBg.setCornerRadius(dp(18));
+                  btnClose.setBackground(closeBg);
+                  btnClose.setOnClickListener(v -> stopSelf());
+                  titleRow.addView(btnClose);
+                  panel.addView(titleRow);
 
                   View trackpad = new View(this);
                   int tpW = dp(200);
@@ -336,8 +376,8 @@ jobs:
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                       PixelFormat.TRANSLUCENT);
                   controlParams.gravity = Gravity.TOP | Gravity.START;
-                  controlParams.x = screenW - tpW - dp(40);
-                  controlParams.y = dp(80);
+                  controlParams.x = dp(10);
+                  controlParams.y = screenH - dp(300);
                   controlView = panel;
                   wm.addView(panel, controlParams);
 
@@ -365,10 +405,11 @@ jobs:
                           float[] l = (float[]) v.getTag();
                           cursorX += (e.getRawX() - l[0]) * 2.5f;
                           cursorY += (e.getRawY() - l[1]) * 2.5f;
-                          cursorX = Math.max(0, Math.min(cursorX, screenW - 60));
-                          cursorY = Math.max(0, Math.min(cursorY, screenH - 60));
-                          cursorParams.x = (int) cursorX;
-                          cursorParams.y = (int) cursorY;
+                          cursorX = Math.max(40, Math.min(cursorX, screenW - 40));
+                          cursorY = Math.max(40, Math.min(cursorY, screenH - 40));
+                          int size = dp(80);
+                          cursorParams.x = (int) cursorX - size / 2;
+                          cursorParams.y = (int) cursorY - size / 2;
                           wm.updateViewLayout(cursorView, cursorParams);
                           v.setTag(new float[]{e.getRawX(), e.getRawY()});
                           return true;
@@ -384,11 +425,9 @@ jobs:
               private void doClick(int type) {
                   MouseAccessibilityService s = MouseAccessibilityService.getInstance();
                   if (s == null) return;
-                  float x = cursorX + dp(20);
-                  float y = cursorY + dp(20);
-                  if (type == 1) s.performClick(x, y);
-                  else if (type == 2) s.performDoubleClick(x, y);
-                  else s.performLongClick(x, y);
+                  if (type == 1) s.performClick(cursorX, cursorY);
+                  else if (type == 2) s.performDoubleClick(cursorX, cursorY);
+                  else s.performLongClick(cursorX, cursorY);
               }
 
               private Button mkBtn(String txt) {
@@ -422,7 +461,7 @@ jobs:
       - name: Create Release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v5.0
-          name: MouseSimulator v5 - Cerchio Rosso
-          body: Cursore cerchio rosso visibile su tutti i dispositivi
+          tag_name: v7.0
+          name: MouseSimulator v7 - Mirino Grande
+          body: Mirino gigante rosso e giallo al centro schermo
           files: app/build/outputs/apk/debug/app-debug.apk
