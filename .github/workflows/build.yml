@@ -30,18 +30,32 @@ jobs:
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/xml
           
-          # [Settings & Build Files]
+          # settings.gradle CORRETTO
           cat > settings.gradle << 'ENDFILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
           rootProject.name = "MouseSimulator"
           include ':app'
           ENDFILE
+
+          # build.gradle ROOT CORRETTO
           cat > build.gradle << 'ENDFILE'
-          plugins { id 'com.android.application' version '8.1.0' apply false }
+          plugins {
+              id 'com.android.application' version '8.1.0' apply false
+          }
           ENDFILE
+
           cat > gradle.properties << 'ENDFILE'
           android.useAndroidX=true
           android.suppressUnsupportedCompileSdk=34
           ENDFILE
+
+          # app/build.gradle
           cat > app/build.gradle << 'ENDFILE'
           plugins { id 'com.android.application' }
           android {
@@ -52,12 +66,11 @@ jobs:
           dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.11.0' }
           ENDFILE
 
-          # [Manifest]
           cat > app/src/main/AndroidManifest.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-              <application android:label="MouseSimV10">
+              <application android:label="MouseSimV10" android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -73,7 +86,6 @@ jobs:
           </manifest>
           ENDFILE
 
-          # [Config & Layouts]
           cat > app/src/main/res/xml/accessibility_service_config.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
@@ -83,12 +95,11 @@ jobs:
           <resources> <string name="app_name">MouseSimV10</string> <string name="desc">Remedy Clicker</string> </resources>
           ENDFILE
           cat > app/src/main/res/layout/activity_main.xml << 'ENDFILE'
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:background="#000">
-              <Button android:id="@+id/btn" android:layout_width="200dp" android:layout_height="80dp" android:text="START V10" />
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:background="#121212">
+              <Button android:id="@+id/btn" android:layout_width="200dp" android:layout_height="80dp" android:text="START MOUSE" />
           </LinearLayout>
           ENDFILE
 
-          # [Java Code]
           cat > app/src/main/java/com/example/mousesimulator/MainActivity.java << 'ENDFILE'
           package com.example.mousesimulator;
           import android.content.Intent;
@@ -130,11 +141,10 @@ jobs:
                   Path p = new Path(); p.moveTo(x, y);
                   GestureDescription.Builder builder = new GestureDescription.Builder();
                   if (!isDouble) {
-                      builder.addStroke(new GestureDescription.StrokeDescription(p, 0, 60));
-                  } else {
-                      // SEQUENZA REALE DOPPIO CLICK
                       builder.addStroke(new GestureDescription.StrokeDescription(p, 0, 50));
-                      builder.addStroke(new GestureDescription.StrokeDescription(p, 200, 50));
+                  } else {
+                      builder.addStroke(new GestureDescription.StrokeDescription(p, 0, 50));
+                      builder.addStroke(new GestureDescription.StrokeDescription(p, 250, 50));
                   }
                   dispatchGesture(builder.build(), null, null);
               }
@@ -183,20 +193,20 @@ jobs:
                   wm.addView(cur, cp);
 
                   LinearLayout pnl = new LinearLayout(this); pnl.setOrientation(1); pnl.setPadding(10,10,10,10);
-                  GradientDrawable g = new GradientDrawable(); g.setColor(0xCC000000); g.setCornerRadius(20); g.setStroke(3, Color.YELLOW);
+                  GradientDrawable g = new GradientDrawable(); g.setColor(0xEE000000); g.setCornerRadius(20); g.setStroke(3, Color.YELLOW);
                   pnl.setBackground(g);
 
-                  Button esc = new Button(this); esc.setText("CHIUDI"); esc.setOnClickListener(v->stopSelf());
+                  Button esc = new Button(this); esc.setText("ESCI"); esc.setOnClickListener(v->stopSelf());
                   pnl.addView(esc);
 
                   View pad = new View(this); pad.setBackgroundColor(0x33FFFFFF);
-                  pnl.addView(pad, dp(220), dp(180));
+                  pnl.addView(pad, dp(200), dp(180));
 
-                  Button b1 = new Button(this); b1.setText("CLICK (Link Blu)");
+                  Button b1 = new Button(this); b1.setText("CLICK");
                   b1.setOnClickListener(v -> { if(MouseAccessibilityService.getInstance()!=null) MouseAccessibilityService.getInstance().remedyClick(cx, cy, false); });
                   pnl.addView(b1);
 
-                  Button b2 = new Button(this); b2.setText("DOPPIO (Apri Riga)");
+                  Button b2 = new Button(this); b2.setText("DOPPIO CLICK");
                   b2.setOnClickListener(v -> { if(MouseAccessibilityService.getInstance()!=null) MouseAccessibilityService.getInstance().remedyClick(cx, cy, true); });
                   pnl.addView(b2);
 
@@ -225,6 +235,6 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v10.0
-          name: MouseSimulator V10
+          tag_name: v10.1
+          name: MouseSimulator V10.1
           files: app/build/outputs/apk/debug/app-debug.apk
