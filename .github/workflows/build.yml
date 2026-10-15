@@ -12,13 +12,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
       - name: Install Gradle
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip
@@ -31,62 +29,35 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/xml
-
+          
+          # [Settings & Build Files]
           cat > settings.gradle << 'ENDFILE'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
-          }
           rootProject.name = "MouseSimulator"
           include ':app'
           ENDFILE
-
           cat > build.gradle << 'ENDFILE'
-          plugins {
-              id 'com.android.application' version '8.1.0' apply false
-          }
+          plugins { id 'com.android.application' version '8.1.0' apply false }
           ENDFILE
-
           cat > gradle.properties << 'ENDFILE'
           android.useAndroidX=true
           android.suppressUnsupportedCompileSdk=34
-          org.gradle.jvmargs=-Xmx2048m
           ENDFILE
-
           cat > app/build.gradle << 'ENDFILE'
           plugins { id 'com.android.application' }
           android {
               namespace 'com.example.mousesimulator'
               compileSdk 34
-              defaultConfig {
-                  applicationId "com.example.mousesimulator"
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
+              defaultConfig { applicationId "com.example.mousesimulator"; minSdk 26; targetSdk 34; versionCode 1; versionName "1.0" }
           }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.11.0'
-          }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.11.0' }
           ENDFILE
 
+          # [Manifest]
           cat > app/src/main/AndroidManifest.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-              <application
-                  android:allowBackup="true"
-                  android:label="MouseSim"
-                  android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+              <application android:label="MouseSimV10">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -94,85 +65,49 @@ jobs:
                       </intent-filter>
                   </activity>
                   <service android:name=".CursorService" android:exported="false" />
-                  <service android:name=".MouseAccessibilityService"
-                      android:exported="true"
-                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-                      <intent-filter>
-                          <action android:name="android.accessibilityservice.AccessibilityService" />
-                      </intent-filter>
-                      <meta-data android:name="android.accessibilityservice"
-                          android:resource="@xml/accessibility_service_config" />
+                  <service android:name=".MouseAccessibilityService" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+                      <intent-filter> <action android:name="android.accessibilityservice.AccessibilityService" /> </intent-filter>
+                      <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
                   </service>
               </application>
           </manifest>
           ENDFILE
 
+          # [Config & Layouts]
           cat > app/src/main/res/xml/accessibility_service_config.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-              android:accessibilityEventTypes="typeAllMask"
-              android:accessibilityFeedbackType="feedbackGeneric"
-              android:accessibilityFlags="flagDefault"
-              android:canPerformGestures="true"
-              android:canRetrieveWindowContent="false"
-              android:description="@string/accessibility_description"
-              android:notificationTimeout="100" />
+              android:canPerformGestures="true" android:description="@string/desc" />
           ENDFILE
-
           cat > app/src/main/res/values/strings.xml << 'ENDFILE'
-          <resources>
-              <string name="app_name">Mouse Simulator</string>
-              <string name="accessibility_description">Simula click mouse per Remedy</string>
-          </resources>
+          <resources> <string name="app_name">MouseSimV10</string> <string name="desc">Remedy Clicker</string> </resources>
           ENDFILE
-
           cat > app/src/main/res/layout/activity_main.xml << 'ENDFILE'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:orientation="vertical"
-              android:gravity="center"
-              android:background="#121212">
-              <TextView android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="Mouse Simulator"
-                  android:textColor="#FFFFFF"
-                  android:textSize="24sp"
-                  android:layout_marginBottom="30dp" />
-              <Button android:id="@+id/btnStart"
-                  android:layout_width="200dp"
-                  android:layout_height="60dp"
-                  android:backgroundTint="#00CCFF"
-                  android:text="AVVIA MOUSE" />
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:background="#000">
+              <Button android:id="@+id/btn" android:layout_width="200dp" android:layout_height="80dp" android:text="START V10" />
           </LinearLayout>
           ENDFILE
 
+          # [Java Code]
           cat > app/src/main/java/com/example/mousesimulator/MainActivity.java << 'ENDFILE'
           package com.example.mousesimulator;
           import android.content.Intent;
           import android.net.Uri;
-          import android.os.Build;
           import android.os.Bundle;
           import android.provider.Settings;
-          import android.widget.Toast;
           import androidx.appcompat.app.AppCompatActivity;
           public class MainActivity extends AppCompatActivity {
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
+              @Override protected void onCreate(Bundle b) {
+                  super.onCreate(b);
                   setContentView(R.layout.activity_main);
-                  findViewById(R.id.btnStart).setOnClickListener(v -> {
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                  findViewById(R.id.btn).setOnClickListener(v -> {
+                      if (Settings.canDrawOverlays(this) && MouseAccessibilityService.getInstance() != null) {
+                          startService(new Intent(this, CursorService.class));
+                          finish();
+                      } else {
                           startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
-                          return;
-                      }
-                      if (MouseAccessibilityService.getInstance() == null) {
                           startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                          return;
                       }
-                      startService(new Intent(this, CursorService.class));
-                      finish();
                   });
               }
           }
@@ -183,33 +118,25 @@ jobs:
           import android.accessibilityservice.AccessibilityService;
           import android.accessibilityservice.GestureDescription;
           import android.graphics.Path;
-          import android.os.Build;
-          import android.os.Handler;
-          import android.os.Looper;
           import android.view.accessibility.AccessibilityEvent;
           public class MouseAccessibilityService extends AccessibilityService {
               private static MouseAccessibilityService instance;
               public static MouseAccessibilityService getInstance() { return instance; }
-              @Override public void onServiceConnected() { super.onServiceConnected(); instance = this; }
-              @Override public void onDestroy() { instance = null; super.onDestroy(); }
+              @Override public void onServiceConnected() { instance = this; }
               @Override public void onAccessibilityEvent(AccessibilityEvent e) {}
               @Override public void onInterrupt() {}
 
-              public void performClick(float x, float y) {
-                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+              public void remedyClick(float x, float y, boolean isDouble) {
                   Path p = new Path(); p.moveTo(x, y);
-                  dispatchGesture(new GestureDescription.Builder()
-                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 150)).build(), null, null);
-              }
-              public void performDoubleClick(float x, float y) {
-                  performClick(x, y);
-                  new Handler(Looper.getMainLooper()).postDelayed(() -> performClick(x, y), 350);
-              }
-              public void performLongClick(float x, float y) {
-                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-                  Path p = new Path(); p.moveTo(x, y);
-                  dispatchGesture(new GestureDescription.Builder()
-                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 700)).build(), null, null);
+                  GestureDescription.Builder builder = new GestureDescription.Builder();
+                  if (!isDouble) {
+                      builder.addStroke(new GestureDescription.StrokeDescription(p, 0, 60));
+                  } else {
+                      // SEQUENZA REALE DOPPIO CLICK
+                      builder.addStroke(new GestureDescription.StrokeDescription(p, 0, 50));
+                      builder.addStroke(new GestureDescription.StrokeDescription(p, 200, 50));
+                  }
+                  dispatchGesture(builder.build(), null, null);
               }
           }
           ENDFILE
@@ -221,116 +148,83 @@ jobs:
           import android.graphics.*;
           import android.graphics.drawable.GradientDrawable;
           import android.os.IBinder;
+          import android.util.DisplayMetrics;
           import android.util.TypedValue;
           import android.view.*;
           import android.widget.*;
 
           public class CursorService extends Service {
               private WindowManager wm;
-              private View cursorView, panelView;
-              private WindowManager.LayoutParams cParams, pParams;
-              private float cX, cY;
-              private int sW, sH;
+              private View cur, pan;
+              private WindowManager.LayoutParams cp, pp;
+              private float cx, cy;
+              private int sw, sh;
 
               @Override public IBinder onBind(Intent i) { return null; }
-
-              @Override
-              public void onCreate() {
+              @Override public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
                   DisplayMetrics dm = getResources().getDisplayMetrics();
-                  sW = dm.widthPixels;
-                  sH = dm.heightPixels;
-                  cX = sW / 2f;
-                  cY = sH / 2f;
+                  sw = dm.widthPixels; sh = dm.heightPixels;
+                  cx = sw / 2f; cy = sh / 2f;
                   
-                  // 1. MIRINO (CERCHIO ROSSO)
-                  int size = dp(60);
-                  cursorView = new View(this) {
+                  int size = dp(40);
+                  cur = new View(this) {
                       Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
                       @Override protected void onDraw(Canvas c) {
-                          p.setColor(Color.RED); c.drawCircle(getWidth()/2f, getHeight()/2f, getWidth()/2f - 4, p);
-                          p.setColor(Color.WHITE); p.setStrokeWidth(5); p.setStyle(Paint.Style.STROKE);
-                          c.drawCircle(getWidth()/2f, getHeight()/2f, getWidth()/2f - 10, p);
-                          c.drawLine(0, getHeight()/2f, getWidth(), getHeight()/2f, p);
-                          c.drawLine(getWidth()/2f, 0, getWidth()/2f, getHeight(), p);
+                          p.setColor(Color.RED); c.drawCircle(size/2f, size/2f, size/2f, p);
+                          p.setColor(Color.WHITE); p.setStrokeWidth(4); p.setStyle(Paint.Style.STROKE);
+                          c.drawCircle(size/2f, size/2f, size/2f-4, p);
+                          c.drawLine(0, size/2f, size, size/2f, p); c.drawLine(size/2f, 0, size/2f, size, p);
                       }
                   };
-                  cParams = new WindowManager.LayoutParams(size, size,
-                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                      PixelFormat.TRANSLUCENT);
-                  cParams.gravity = Gravity.TOP | Gravity.START;
-                  cParams.x = (int)cX - size/2; cParams.y = (int)cY - size/2;
-                  wm.addView(cursorView, cParams);
+                  cp = new WindowManager.LayoutParams(size, size, 2038, 520, -3);
+                  cp.gravity = 51; cp.x = (int)cx - size/2; cp.y = (int)cy - size/2;
+                  wm.addView(cur, cp);
 
-                  // 2. PANNELLO
-                  LinearLayout panel = new LinearLayout(this);
-                  panel.setOrientation(LinearLayout.VERTICAL);
-                  panel.setPadding(20, 20, 20, 20);
-                  GradientDrawable bg = new GradientDrawable();
-                  bg.setColor(0xFF222222); bg.setCornerRadius(30); bg.setStroke(4, Color.YELLOW);
-                  panel.setBackground(bg);
+                  LinearLayout pnl = new LinearLayout(this); pnl.setOrientation(1); pnl.setPadding(10,10,10,10);
+                  GradientDrawable g = new GradientDrawable(); g.setColor(0xCC000000); g.setCornerRadius(20); g.setStroke(3, Color.YELLOW);
+                  pnl.setBackground(g);
 
-                  LinearLayout head = new LinearLayout(this);
-                  TextView title = new TextView(this); title.setText("MOUSE"); title.setTextColor(Color.YELLOW);
-                  head.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
-                  Button btnX = new Button(this); btnX.setText("ESCI"); btnX.setBackgroundColor(Color.RED); btnX.setTextColor(Color.WHITE);
-                  btnX.setOnClickListener(v -> stopSelf());
-                  head.addView(btnX, new LinearLayout.LayoutParams(dp(80), dp(45)));
-                  panel.addView(head);
+                  Button esc = new Button(this); esc.setText("CHIUDI"); esc.setOnClickListener(v->stopSelf());
+                  pnl.addView(esc);
 
-                  View tp = new View(this); tp.setBackgroundColor(0xFF444444);
-                  panel.addView(tp, new LinearLayout.LayoutParams(dp(220), dp(150)));
+                  View pad = new View(this); pad.setBackgroundColor(0x33FFFFFF);
+                  pnl.addView(pad, dp(220), dp(180));
 
-                  LinearLayout btns = new LinearLayout(this);
-                  String[] l = {"CLICK", "DOPPIO", "LUNGO"};
-                  for(int i=0; i<3; i++) {
-                      Button b = new Button(this); b.setText(l[i]);
-                      int finalI = i; b.setOnClickListener(v -> {
-                          MouseAccessibilityService s = MouseAccessibilityService.getInstance();
-                          if(s!=null) {
-                              if(finalI==0) s.performClick(cX, cY);
-                              else if(finalI==1) s.performDoubleClick(cX, cY);
-                              else s.performLongClick(cX, cY);
-                          }
-                      });
-                      btns.addView(b, new LinearLayout.LayoutParams(0, -2, 1f));
-                  }
-                  panel.addView(btns);
+                  Button b1 = new Button(this); b1.setText("CLICK (Link Blu)");
+                  b1.setOnClickListener(v -> { if(MouseAccessibilityService.getInstance()!=null) MouseAccessibilityService.getInstance().remedyClick(cx, cy, false); });
+                  pnl.addView(b1);
 
-                  pParams = new WindowManager.LayoutParams(-2, -2,
-                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-                  pParams.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-                  wm.addView(panel, pParams);
-                  panelView = panel;
+                  Button b2 = new Button(this); b2.setText("DOPPIO (Apri Riga)");
+                  b2.setOnClickListener(v -> { if(MouseAccessibilityService.getInstance()!=null) MouseAccessibilityService.getInstance().remedyClick(cx, cy, true); });
+                  pnl.addView(b2);
 
-                  tp.setOnTouchListener((v, e) -> {
+                  pp = new WindowManager.LayoutParams(-2, -2, 2038, 8, -3);
+                  pp.gravity = 81; wm.addView(pnl, pp); pan = pnl;
+
+                  pad.setOnTouchListener((v, e) -> {
                       static float lx, ly;
-                      if(e.getAction()==MotionEvent.ACTION_DOWN) { lx=e.getRawX(); ly=e.getRawY(); return true; }
-                      if(e.getAction()==MotionEvent.ACTION_MOVE) {
-                          cX += (e.getRawX()-lx)*2f; cY += (e.getRawY()-ly)*2f;
-                          cX = Math.max(0, Math.min(cX, sW)); cY = Math.max(0, Math.min(cY, sH));
-                          cParams.x = (int)cX - size/2; cParams.y = (int)cY - size/2;
-                          wm.updateViewLayout(cursorView, cParams);
-                          lx=e.getRawX(); ly=e.getRawY(); return true;
+                      if(e.getAction()==0) { lx=e.getRawX(); ly=e.getRawY(); return true; }
+                      if(e.getAction()==2) {
+                          cx += (e.getRawX()-lx)*2.2f; cy += (e.getRawY()-ly)*2.2f;
+                          cx = Math.max(0, Math.min(cx, sw)); cy = Math.max(0, Math.min(cy, sh));
+                          cp.x = (int)cx - size/2; cp.y = (int)cy - size/2;
+                          wm.updateViewLayout(cur, cp); lx=e.getRawX(); ly=e.getRawY(); return true;
                       }
                       return false;
                   });
               }
-
-              private int dp(int v) { return (int)TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
-              @Override public void onDestroy() { super.onDestroy(); if(cursorView!=null) wm.removeView(cursorView); if(panelView!=null) wm.removeView(panelView); }
+              private int dp(int v) { return (int)TypedValue.applyDimension(1, v, getResources().getDisplayMetrics()); }
+              @Override public void onDestroy() { super.onDestroy(); wm.removeView(cur); wm.removeView(pan); }
           }
           ENDFILE
 
       - name: Build APK
         run: gradle assembleDebug
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v8.0
-          name: MouseSimulator v8
+          tag_name: v10.0
+          name: MouseSimulator V10
           files: app/build/outputs/apk/debug/app-debug.apk
