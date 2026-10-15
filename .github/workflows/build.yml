@@ -198,31 +198,22 @@ jobs:
               @Override public void onDestroy() { instance = null; super.onDestroy(); }
               @Override public void onAccessibilityEvent(AccessibilityEvent e) {}
               @Override public void onInterrupt() {}
-
               public void performClick(float x, float y) {
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-                  Path p = new Path();
-                  p.moveTo(x, y);
-                  GestureDescription.Builder b = new GestureDescription.Builder();
-                  b.addStroke(new GestureDescription.StrokeDescription(p, 0, 150));
-                  dispatchGesture(b.build(), null, null);
+                  Path p = new Path(); p.moveTo(x, y);
+                  dispatchGesture(new GestureDescription.Builder()
+                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 150)).build(), null, null);
               }
-
               public void performDoubleClick(float x, float y) {
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
                   performClick(x, y);
-                  new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                      performClick(x, y);
-                  }, 350);
+                  new Handler(Looper.getMainLooper()).postDelayed(() -> performClick(x, y), 350);
               }
-
               public void performLongClick(float x, float y) {
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-                  Path p = new Path();
-                  p.moveTo(x, y);
-                  GestureDescription.Builder b = new GestureDescription.Builder();
-                  b.addStroke(new GestureDescription.StrokeDescription(p, 0, 800));
-                  dispatchGesture(b.build(), null, null);
+                  Path p = new Path(); p.moveTo(x, y);
+                  dispatchGesture(new GestureDescription.Builder()
+                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 800)).build(), null, null);
               }
           }
           ENDFILE
@@ -272,15 +263,17 @@ jobs:
               }
 
               private void createCursor() {
-                  TextView tv = new TextView(this);
-                  tv.setText("\u27A4");
-                  tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 48);
-                  tv.setTextColor(Color.RED);
-                  tv.setShadowLayer(10, 3, 3, Color.BLACK);
-                  cursorView = tv;
+                  int size = dp(40);
+                  View dot = new View(this);
+                  GradientDrawable shape = new GradientDrawable();
+                  shape.setShape(GradientDrawable.OVAL);
+                  shape.setColor(Color.RED);
+                  shape.setStroke(dp(3), Color.WHITE);
+                  dot.setBackground(shape);
+                  dot.setElevation(dp(10));
+                  cursorView = dot;
                   cursorParams = new WindowManager.LayoutParams(
-                      WindowManager.LayoutParams.WRAP_CONTENT,
-                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      size, size,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                       PixelFormat.TRANSLUCENT);
@@ -302,7 +295,7 @@ jobs:
                   panel.setBackground(bg);
 
                   TextView title = new TextView(this);
-                  title.setText("  \uD83D\uDDB1\uFE0F Mouse  ");
+                  title.setText("  Mouse  ");
                   title.setTextColor(Color.CYAN);
                   title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
                   title.setGravity(Gravity.CENTER);
@@ -391,8 +384,8 @@ jobs:
               private void doClick(int type) {
                   MouseAccessibilityService s = MouseAccessibilityService.getInstance();
                   if (s == null) return;
-                  float x = cursorX + 30;
-                  float y = cursorY + 30;
+                  float x = cursorX + dp(20);
+                  float y = cursorY + dp(20);
                   if (type == 1) s.performClick(x, y);
                   else if (type == 2) s.performDoubleClick(x, y);
                   else s.performLongClick(x, y);
@@ -429,7 +422,7 @@ jobs:
       - name: Create Release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v4.0
-          name: MouseSimulator v4 - Fix Zoom
-          body: Fix doppio click che faceva zoom
+          tag_name: v5.0
+          name: MouseSimulator v5 - Cerchio Rosso
+          body: Cursore cerchio rosso visibile su tutti i dispositivi
           files: app/build/outputs/apk/debug/app-debug.apk
