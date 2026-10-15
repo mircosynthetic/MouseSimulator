@@ -22,8 +22,312 @@ jobs:
           unzip -q /tmp/gradle.zip -d /opt
           echo "/opt/gradle-8.2/bin" >> $GITHUB_PATH
 
-      - name: Verify Gradle
-        run: gradle --version
+      - name: Generate Project
+        run: |
+          # Crea cartelle
+          mkdir -p app/src/main/java/com/example/mousesimulator
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/xml
+
+          # settings.gradle
+          cat > settings.gradle << 'ENDFILE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "MouseSimulator"
+          include ':app'
+          ENDFILE
+
+          # build.gradle root
+          cat > build.gradle << 'ENDFILE'
+          plugins {
+              id 'com.android.application' version '8.1.0' apply false
+          }
+          ENDFILE
+
+          # gradle.properties
+          cat > gradle.properties << 'ENDFILE'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx2048m
+          ENDFILE
+
+          # app/build.gradle
+          cat > app/build.gradle << 'ENDFILE'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.example.mousesimulator'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.mousesimulator"
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+          }
+          ENDFILE
+
+          # AndroidManifest.xml
+          cat > app/src/main/AndroidManifest.xml << 'ENDFILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              <application
+                  android:allowBackup="true"
+                  android:label="MouseSim"
+                  android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  <service android:name=".MouseOverlayService" android:exported="false" />
+                  <service android:name=".MouseAccessibilityService"
+                      android:exported="true"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_service_config" />
+                  </service>
+              </application>
+          </manifest>
+          ENDFILE
+
+          # accessibility_service_config.xml
+          cat > app/src/main/res/xml/accessibility_service_config.xml << 'ENDFILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeAllMask"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagDefault"
+              android:canPerformGestures="true"
+              android:canRetrieveWindowContent="false"
+              android:description="Simula click mouse"
+              android:notificationTimeout="100" />
+          ENDFILE
+
+          # strings.xml
+          cat > app/src/main/res/values/strings.xml << 'ENDFILE'
+          <resources>
+              <string name="app_name">Mouse Simulator</string>
+          </resources>
+          ENDFILE
+
+          # activity_main.xml
+          cat > app/src/main/res/layout/activity_main.xml << 'ENDFILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="32dp">
+              <TextView android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Mouse Simulator"
+                  android:textSize="28sp"
+                  android:layout_marginBottom="32dp" />
+              <Button android:id="@+id/btnStart"
+                  android:layout_width="250dp"
+                  android:layout_height="60dp"
+                  android:text="Avvia Mouse" />
+          </LinearLayout>
+          ENDFILE
+
+          # overlay_layout.xml
+          cat > app/src/main/res/layout/overlay_layout.xml << 'ENDFILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="280dp"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:background="#CC000000"
+              android:padding="8dp">
+              <TextView android:id="@+id/tvDragBar"
+                  android:layout_width="match_parent"
+                  android:layout_height="36dp"
+                  android:text="Mouse"
+                  android:textColor="#FFF"
+                  android:gravity="center"
+                  android:background="#336" />
+              <View android:id="@+id/trackpad"
+                  android:layout_width="match_parent"
+                  android:layout_height="150dp"
+                  android:layout_marginTop="6dp"
+                  android:background="#2A2A4A" />
+              <LinearLayout android:layout_width="match_parent"
+                  android:layout_height="50dp"
+                  android:layout_marginTop="6dp"
+                  android:orientation="horizontal">
+                  <Button android:id="@+id/btnLeftClick"
+                      android:layout_width="0dp"
+                      android:layout_height="match_parent"
+                      android:layout_weight="1"
+                      android:text="Click" />
+                  <Button android:id="@+id/btnDoubleClick"
+                      android:layout_width="0dp"
+                      android:layout_height="match_parent"
+                      android:layout_weight="1"
+                      android:text="Doppio" />
+                  <Button android:id="@+id/btnLongClick"
+                      android:layout_width="0dp"
+                      android:layout_height="match_parent"
+                      android:layout_weight="1"
+                      android:text="Lungo" />
+              </LinearLayout>
+          </LinearLayout>
+          ENDFILE
+
+          # MainActivity.java
+          cat > app/src/main/java/com/example/mousesimulator/MainActivity.java << 'ENDFILE'
+          package com.example.mousesimulator;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import android.widget.Toast;
+          import androidx.appcompat.app.AppCompatActivity;
+          public class MainActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+                  findViewById(R.id.btnStart).setOnClickListener(v -> {
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                          startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
+                          return;
+                      }
+                      if (MouseAccessibilityService.getInstance() == null) {
+                          startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                          Toast.makeText(this, "Attiva MouseSimulator", Toast.LENGTH_LONG).show();
+                          return;
+                      }
+                      startService(new Intent(this, MouseOverlayService.class));
+                      Toast.makeText(this, "Mouse avviato!", Toast.LENGTH_SHORT).show();
+                  });
+              }
+          }
+          ENDFILE
+
+          # MouseAccessibilityService.java
+          cat > app/src/main/java/com/example/mousesimulator/MouseAccessibilityService.java << 'ENDFILE'
+          package com.example.mousesimulator;
+          import android.accessibilityservice.AccessibilityService;
+          import android.accessibilityservice.GestureDescription;
+          import android.graphics.Path;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.accessibility.AccessibilityEvent;
+          public class MouseAccessibilityService extends AccessibilityService {
+              private static MouseAccessibilityService instance;
+              public static MouseAccessibilityService getInstance() { return instance; }
+              @Override public void onServiceConnected() { super.onServiceConnected(); instance = this; }
+              @Override public void onDestroy() { instance = null; super.onDestroy(); }
+              @Override public void onAccessibilityEvent(AccessibilityEvent e) {}
+              @Override public void onInterrupt() {}
+              public void performClick(float x, float y) {
+                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+                  Path p = new Path(); p.moveTo(x, y);
+                  dispatchGesture(new GestureDescription.Builder()
+                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 100)).build(), null, null);
+              }
+              public void performDoubleClick(float x, float y) {
+                  performClick(x, y);
+                  new Handler(Looper.getMainLooper()).postDelayed(() -> performClick(x, y), 80);
+              }
+              public void performLongClick(float x, float y) {
+                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+                  Path p = new Path(); p.moveTo(x, y);
+                  dispatchGesture(new GestureDescription.Builder()
+                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 600)).build(), null, null);
+              }
+          }
+          ENDFILE
+
+          # MouseOverlayService.java
+          cat > app/src/main/java/com/example/mousesimulator/MouseOverlayService.java << 'ENDFILE'
+          package com.example.mousesimulator;
+          import android.app.Service;
+          import android.content.Intent;
+          import android.graphics.PixelFormat;
+          import android.os.IBinder;
+          import android.view.*;
+          public class MouseOverlayService extends Service {
+              private WindowManager wm;
+              private View overlay;
+              private WindowManager.LayoutParams params;
+              private float cursorX = 540f, cursorY = 960f;
+              @Override public IBinder onBind(Intent i) { return null; }
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  overlay = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
+                  params = new WindowManager.LayoutParams(
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                      PixelFormat.TRANSLUCENT);
+                  params.gravity = Gravity.TOP | Gravity.START;
+                  params.x = 50; params.y = 200;
+                  wm.addView(overlay, params);
+                  overlay.findViewById(R.id.tvDragBar).setOnTouchListener((v, e) -> {
+                      if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                          v.setTag(new float[]{params.x - e.getRawX(), params.y - e.getRawY()});
+                          return true;
+                      }
+                      if (e.getAction() == MotionEvent.ACTION_MOVE) {
+                          float[] d = (float[]) v.getTag();
+                          params.x = (int)(e.getRawX() + d[0]);
+                          params.y = (int)(e.getRawY() + d[1]);
+                          wm.updateViewLayout(overlay, params);
+                          return true;
+                      }
+                      return false;
+                  });
+                  overlay.findViewById(R.id.trackpad).setOnTouchListener((v, e) -> {
+                      if (e.getAction() == MotionEvent.ACTION_DOWN) { v.setTag(new float[]{e.getRawX(), e.getRawY()}); return true; }
+                      if (e.getAction() == MotionEvent.ACTION_MOVE) {
+                          float[] l = (float[]) v.getTag();
+                          cursorX += (e.getRawX() - l[0]) * 3f;
+                          cursorY += (e.getRawY() - l[1]) * 3f;
+                          cursorX = Math.max(0, Math.min(cursorX, getResources().getDisplayMetrics().widthPixels));
+                          cursorY = Math.max(0, Math.min(cursorY, getResources().getDisplayMetrics().heightPixels));
+                          v.setTag(new float[]{e.getRawX(), e.getRawY()});
+                          return true;
+                      }
+                      return false;
+                  });
+                  overlay.findViewById(R.id.btnLeftClick).setOnClickListener(v -> { MouseAccessibilityService s = MouseAccessibilityService.getInstance(); if (s != null) s.performClick(cursorX, cursorY); });
+                  overlay.findViewById(R.id.btnDoubleClick).setOnClickListener(v -> { MouseAccessibilityService s = MouseAccessibilityService.getInstance(); if (s != null) s.performDoubleClick(cursorX, cursorY); });
+                  overlay.findViewById(R.id.btnLongClick).setOnClickListener(v -> { MouseAccessibilityService s = MouseAccessibilityService.getInstance(); if (s != null) s.performLongClick(cursorX, cursorY); });
+              }
+              @Override
+              public void onDestroy() {
+                  super.onDestroy();
+                  if (overlay != null) wm.removeView(overlay);
+              }
+          }
+          ENDFILE
 
       - name: Build APK
         run: gradle assembleDebug
