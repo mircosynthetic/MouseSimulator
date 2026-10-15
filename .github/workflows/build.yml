@@ -30,7 +30,7 @@ jobs:
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/xml
           
-          # settings.gradle CORRETTO
+          # [settings.gradle]
           cat > settings.gradle << 'ENDFILE'
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -43,7 +43,7 @@ jobs:
           include ':app'
           ENDFILE
 
-          # build.gradle ROOT CORRETTO
+          # [build.gradle Root]
           cat > build.gradle << 'ENDFILE'
           plugins {
               id 'com.android.application' version '8.1.0' apply false
@@ -55,7 +55,7 @@ jobs:
           android.suppressUnsupportedCompileSdk=34
           ENDFILE
 
-          # app/build.gradle
+          # [app/build.gradle]
           cat > app/build.gradle << 'ENDFILE'
           plugins { id 'com.android.application' }
           android {
@@ -66,6 +66,7 @@ jobs:
           dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.11.0' }
           ENDFILE
 
+          # [AndroidManifest.xml]
           cat > app/src/main/AndroidManifest.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -91,9 +92,11 @@ jobs:
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
               android:canPerformGestures="true" android:description="@string/desc" />
           ENDFILE
+
           cat > app/src/main/res/values/strings.xml << 'ENDFILE'
           <resources> <string name="app_name">MouseSimV10</string> <string name="desc">Remedy Clicker</string> </resources>
           ENDFILE
+
           cat > app/src/main/res/layout/activity_main.xml << 'ENDFILE'
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:background="#121212">
               <Button android:id="@+id/btn" android:layout_width="200dp" android:layout_height="80dp" android:text="START MOUSE" />
@@ -168,6 +171,7 @@ jobs:
               private View cur, pan;
               private WindowManager.LayoutParams cp, pp;
               private float cx, cy;
+              private float lx, ly;
               private int sw, sh;
 
               @Override public IBinder onBind(Intent i) { return null; }
@@ -189,44 +193,77 @@ jobs:
                       }
                   };
                   cp = new WindowManager.LayoutParams(size, size, 2038, 520, -3);
-                  cp.gravity = 51; cp.x = (int)cx - size/2; cp.y = (int)cy - size/2;
+                  cp.gravity = Gravity.TOP | Gravity.START;
+                  cp.x = (int)cx - size/2; cp.y = (int)cy - size/2;
                   wm.addView(cur, cp);
 
-                  LinearLayout pnl = new LinearLayout(this); pnl.setOrientation(1); pnl.setPadding(10,10,10,10);
-                  GradientDrawable g = new GradientDrawable(); g.setColor(0xEE000000); g.setCornerRadius(20); g.setStroke(3, Color.YELLOW);
+                  LinearLayout pnl = new LinearLayout(this);
+                  pnl.setOrientation(LinearLayout.VERTICAL);
+                  pnl.setPadding(10,10,10,10);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(0xEE000000); g.setCornerRadius(20); g.setStroke(3, Color.YELLOW);
                   pnl.setBackground(g);
 
-                  Button esc = new Button(this); esc.setText("ESCI"); esc.setOnClickListener(v->stopSelf());
+                  Button esc = new Button(this);
+                  esc.setText("ESCI");
+                  esc.setOnClickListener(v->stopSelf());
                   pnl.addView(esc);
 
-                  View pad = new View(this); pad.setBackgroundColor(0x33FFFFFF);
-                  pnl.addView(pad, dp(200), dp(180));
+                  View pad = new View(this);
+                  pad.setBackgroundColor(0x33FFFFFF);
+                  pnl.addView(pad, dp(220), dp(180));
 
-                  Button b1 = new Button(this); b1.setText("CLICK");
-                  b1.setOnClickListener(v -> { if(MouseAccessibilityService.getInstance()!=null) MouseAccessibilityService.getInstance().remedyClick(cx, cy, false); });
+                  Button b1 = new Button(this);
+                  b1.setText("CLICK");
+                  b1.setOnClickListener(v -> {
+                      if(MouseAccessibilityService.getInstance()!=null)
+                          MouseAccessibilityService.getInstance().remedyClick(cx, cy, false);
+                  });
                   pnl.addView(b1);
 
-                  Button b2 = new Button(this); b2.setText("DOPPIO CLICK");
-                  b2.setOnClickListener(v -> { if(MouseAccessibilityService.getInstance()!=null) MouseAccessibilityService.getInstance().remedyClick(cx, cy, true); });
+                  Button b2 = new Button(this);
+                  b2.setText("DOPPIO CLICK");
+                  b2.setOnClickListener(v -> {
+                      if(MouseAccessibilityService.getInstance()!=null)
+                          MouseAccessibilityService.getInstance().remedyClick(cx, cy, true);
+                  });
                   pnl.addView(b2);
 
-                  pp = new WindowManager.LayoutParams(-2, -2, 2038, 8, -3);
-                  pp.gravity = 81; wm.addView(pnl, pp); pan = pnl;
+                  pp = new WindowManager.LayoutParams(
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      2038, 8, -3);
+                  pp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+                  wm.addView(pnl, pp);
+                  pan = pnl;
 
                   pad.setOnTouchListener((v, e) -> {
-                      static float lx, ly;
-                      if(e.getAction()==0) { lx=e.getRawX(); ly=e.getRawY(); return true; }
-                      if(e.getAction()==2) {
-                          cx += (e.getRawX()-lx)*2.2f; cy += (e.getRawY()-ly)*2.2f;
-                          cx = Math.max(0, Math.min(cx, sw)); cy = Math.max(0, Math.min(cy, sh));
-                          cp.x = (int)cx - size/2; cp.y = (int)cy - size/2;
-                          wm.updateViewLayout(cur, cp); lx=e.getRawX(); ly=e.getRawY(); return true;
+                      if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                          lx = e.getRawX();
+                          ly = e.getRawY();
+                          return true;
+                      }
+                      if (e.getAction() == MotionEvent.ACTION_MOVE) {
+                          cx += (e.getRawX() - lx) * 2.2f;
+                          cy += (e.getRawY() - ly) * 2.2f;
+                          cx = Math.max(0, Math.min(cx, sw));
+                          cy = Math.max(0, Math.min(cy, sh));
+                          cp.x = (int)cx - size/2;
+                          cp.y = (int)cy - size/2;
+                          wm.updateViewLayout(cur, cp);
+                          lx = e.getRawX();
+                          ly = e.getRawY();
+                          return true;
                       }
                       return false;
                   });
               }
-              private int dp(int v) { return (int)TypedValue.applyDimension(1, v, getResources().getDisplayMetrics()); }
-              @Override public void onDestroy() { super.onDestroy(); wm.removeView(cur); wm.removeView(pan); }
+              private int dp(int v) { return (int)TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
+              @Override public void onDestroy() {
+                  super.onDestroy();
+                  if (cur != null) try { wm.removeView(cur); } catch (Exception ex) {}
+                  if (pan != null) try { wm.removeView(pan); } catch (Exception ex) {}
+              }
           }
           ENDFILE
 
@@ -235,6 +272,6 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v10.1
-          name: MouseSimulator V10.1
+          tag_name: v10.2
+          name: MouseSimulator V10.2
           files: app/build/outputs/apk/debug/app-debug.apk
