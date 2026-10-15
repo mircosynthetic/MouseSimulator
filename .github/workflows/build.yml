@@ -118,7 +118,7 @@ jobs:
               android:accessibilityFlags="flagDefault"
               android:canPerformGestures="true"
               android:canRetrieveWindowContent="false"
-              android:description="Simula click mouse"
+              android:description="@string/accessibility_description"
               android:notificationTimeout="100" />
           ENDFILE
 
