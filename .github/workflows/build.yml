@@ -198,21 +198,31 @@ jobs:
               @Override public void onDestroy() { instance = null; super.onDestroy(); }
               @Override public void onAccessibilityEvent(AccessibilityEvent e) {}
               @Override public void onInterrupt() {}
+
               public void performClick(float x, float y) {
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-                  Path p = new Path(); p.moveTo(x, y);
-                  dispatchGesture(new GestureDescription.Builder()
-                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 100)).build(), null, null);
+                  Path p = new Path();
+                  p.moveTo(x, y);
+                  GestureDescription.Builder b = new GestureDescription.Builder();
+                  b.addStroke(new GestureDescription.StrokeDescription(p, 0, 150));
+                  dispatchGesture(b.build(), null, null);
               }
+
               public void performDoubleClick(float x, float y) {
+                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
                   performClick(x, y);
-                  new Handler(Looper.getMainLooper()).postDelayed(() -> performClick(x, y), 80);
+                  new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                      performClick(x, y);
+                  }, 350);
               }
+
               public void performLongClick(float x, float y) {
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-                  Path p = new Path(); p.moveTo(x, y);
-                  dispatchGesture(new GestureDescription.Builder()
-                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 600)).build(), null, null);
+                  Path p = new Path();
+                  p.moveTo(x, y);
+                  GestureDescription.Builder b = new GestureDescription.Builder();
+                  b.addStroke(new GestureDescription.StrokeDescription(p, 0, 800));
+                  dispatchGesture(b.build(), null, null);
               }
           }
           ENDFILE
@@ -419,7 +429,7 @@ jobs:
       - name: Create Release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v3.0
-          name: MouseSimulator v3
-          body: Freccia rossa + pannello blu in alto a destra
+          tag_name: v4.0
+          name: MouseSimulator v4 - Fix Zoom
+          body: Fix doppio click che faceva zoom
           files: app/build/outputs/apk/debug/app-debug.apk
