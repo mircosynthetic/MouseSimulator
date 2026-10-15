@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Mouse Simulator</string>
+    <string name="accessibility_description">
+        Simula click del mouse sullo schermo per aprire ticket e link.
+    </string>
+    <string name="btn_start">Avvia Mouse</string>
+    <string name="btn_stop">Ferma Mouse</string>
+    <string name="status_running">Mouse attivo</string>
+    <string name="status_stopped">Mouse fermo</string>
+</resources>
