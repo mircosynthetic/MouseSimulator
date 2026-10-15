@@ -122,7 +122,7 @@ jobs:
           cat > app/src/main/res/values/strings.xml << 'ENDFILE'
           <resources>
               <string name="app_name">Mouse Simulator</string>
-              <string name="accessibility_description">Simula click mouse</string>
+              <string name="accessibility_description">Simula click mouse per Remedy</string>
           </resources>
           ENDFILE
 
@@ -133,20 +133,18 @@ jobs:
               android:layout_height="match_parent"
               android:orientation="vertical"
               android:gravity="center"
-              android:padding="32dp"
-              android:background="#1A1A2E">
+              android:background="#121212">
               <TextView android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
                   android:text="Mouse Simulator"
                   android:textColor="#FFFFFF"
-                  android:textSize="28sp"
-                  android:textStyle="bold"
-                  android:layout_marginBottom="32dp" />
+                  android:textSize="24sp"
+                  android:layout_marginBottom="30dp" />
               <Button android:id="@+id/btnStart"
-                  android:layout_width="250dp"
+                  android:layout_width="200dp"
                   android:layout_height="60dp"
-                  android:text="Avvia Mouse"
-                  android:textSize="18sp" />
+                  android:backgroundTint="#00CCFF"
+                  android:text="AVVIA MOUSE" />
           </LinearLayout>
           ENDFILE
 
@@ -171,11 +169,9 @@ jobs:
                       }
                       if (MouseAccessibilityService.getInstance() == null) {
                           startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                          Toast.makeText(this, "Attiva MouseSimulator", Toast.LENGTH_LONG).show();
                           return;
                       }
                       startService(new Intent(this, CursorService.class));
-                      Toast.makeText(this, "Mouse avviato!", Toast.LENGTH_SHORT).show();
                       finish();
                   });
               }
@@ -198,6 +194,7 @@ jobs:
               @Override public void onDestroy() { instance = null; super.onDestroy(); }
               @Override public void onAccessibilityEvent(AccessibilityEvent e) {}
               @Override public void onInterrupt() {}
+
               public void performClick(float x, float y) {
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
                   Path p = new Path(); p.moveTo(x, y);
@@ -205,7 +202,6 @@ jobs:
                       .addStroke(new GestureDescription.StrokeDescription(p, 0, 150)).build(), null, null);
               }
               public void performDoubleClick(float x, float y) {
-                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
                   performClick(x, y);
                   new Handler(Looper.getMainLooper()).postDelayed(() -> performClick(x, y), 350);
               }
@@ -213,7 +209,7 @@ jobs:
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
                   Path p = new Path(); p.moveTo(x, y);
                   dispatchGesture(new GestureDescription.Builder()
-                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 800)).build(), null, null);
+                      .addStroke(new GestureDescription.StrokeDescription(p, 0, 700)).build(), null, null);
               }
           }
           ENDFILE
@@ -222,29 +218,19 @@ jobs:
           package com.example.mousesimulator;
           import android.app.Service;
           import android.content.Intent;
-          import android.graphics.Canvas;
-          import android.graphics.Color;
-          import android.graphics.Paint;
-          import android.graphics.PixelFormat;
+          import android.graphics.*;
           import android.graphics.drawable.GradientDrawable;
           import android.os.IBinder;
           import android.util.TypedValue;
-          import android.view.Gravity;
-          import android.view.MotionEvent;
-          import android.view.View;
-          import android.view.WindowManager;
-          import android.widget.Button;
-          import android.widget.LinearLayout;
-          import android.widget.TextView;
+          import android.view.*;
+          import android.widget.*;
 
           public class CursorService extends Service {
               private WindowManager wm;
-              private View cursorView;
-              private View controlView;
-              private WindowManager.LayoutParams cursorParams;
-              private WindowManager.LayoutParams controlParams;
-              private float cursorX, cursorY;
-              private int screenW, screenH;
+              private View cursorView, panelView;
+              private WindowManager.LayoutParams cParams, pParams;
+              private float cX, cY;
+              private int sW, sH;
 
               @Override public IBinder onBind(Intent i) { return null; }
 
@@ -252,216 +238,99 @@ jobs:
               public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-                  screenW = getResources().getDisplayMetrics().widthPixels;
-                  screenH = getResources().getDisplayMetrics().heightPixels;
-                  cursorX = screenW / 2f;
-                  cursorY = screenH / 2f;
-                  createCursor();
-                  createPanel();
-              }
-
-              private int dp(int v) {
-                  return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
-              }
-
-              private void createCursor() {
-                  int size = dp(80);
+                  DisplayMetrics dm = getResources().getDisplayMetrics();
+                  sW = dm.widthPixels;
+                  sH = dm.heightPixels;
+                  cX = sW / 2f;
+                  cY = sH / 2f;
+                  
+                  // 1. MIRINO (CERCHIO ROSSO)
+                  int size = dp(60);
                   cursorView = new View(this) {
-                      private Paint paintOuter = new Paint(Paint.ANTI_ALIAS_FLAG);
-                      private Paint paintInner = new Paint(Paint.ANTI_ALIAS_FLAG);
-                      private Paint paintCross = new Paint(Paint.ANTI_ALIAS_FLAG);
-                      {
-                          paintOuter.setColor(0xFFFF0000);
-                          paintOuter.setStyle(Paint.Style.FILL);
-                          paintInner.setColor(0xFFFFFF00);
-                          paintInner.setStyle(Paint.Style.FILL);
-                          paintCross.setColor(0xFF000000);
-                          paintCross.setStyle(Paint.Style.STROKE);
-                          paintCross.setStrokeWidth(dp(3));
-                      }
-                      @Override
-                      protected void onDraw(Canvas c) {
-                          int cx = getWidth() / 2;
-                          int cy = getHeight() / 2;
-                          int r = Math.min(cx, cy) - dp(4);
-                          c.drawCircle(cx, cy, r, paintOuter);
-                          c.drawCircle(cx, cy, r - dp(8), paintInner);
-                          c.drawCircle(cx, cy, r - dp(14), paintOuter);
-                          c.drawLine(cx - r, cy, cx + r, cy, paintCross);
-                          c.drawLine(cx, cy - r, cx, cy + r, paintCross);
+                      Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      @Override protected void onDraw(Canvas c) {
+                          p.setColor(Color.RED); c.drawCircle(getWidth()/2f, getHeight()/2f, getWidth()/2f - 4, p);
+                          p.setColor(Color.WHITE); p.setStrokeWidth(5); p.setStyle(Paint.Style.STROKE);
+                          c.drawCircle(getWidth()/2f, getHeight()/2f, getWidth()/2f - 10, p);
+                          c.drawLine(0, getHeight()/2f, getWidth(), getHeight()/2f, p);
+                          c.drawLine(getWidth()/2f, 0, getWidth()/2f, getHeight(), p);
                       }
                   };
-                  cursorParams = new WindowManager.LayoutParams(
-                      size, size,
+                  cParams = new WindowManager.LayoutParams(size, size,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                       PixelFormat.TRANSLUCENT);
-                  cursorParams.gravity = Gravity.TOP | Gravity.START;
-                  cursorParams.x = (int) cursorX - size / 2;
-                  cursorParams.y = (int) cursorY - size / 2;
-                  wm.addView(cursorView, cursorParams);
-              }
+                  cParams.gravity = Gravity.TOP | Gravity.START;
+                  cParams.x = (int)cX - size/2; cParams.y = (int)cY - size/2;
+                  wm.addView(cursorView, cParams);
 
-              private void createPanel() {
-                  int pad = dp(10);
+                  // 2. PANNELLO
                   LinearLayout panel = new LinearLayout(this);
                   panel.setOrientation(LinearLayout.VERTICAL);
-                  panel.setPadding(pad, pad, pad, pad);
+                  panel.setPadding(20, 20, 20, 20);
                   GradientDrawable bg = new GradientDrawable();
-                  bg.setColor(0xEE111133);
-                  bg.setCornerRadius(dp(16));
-                  bg.setStroke(dp(2), Color.CYAN);
+                  bg.setColor(0xFF222222); bg.setCornerRadius(30); bg.setStroke(4, Color.YELLOW);
                   panel.setBackground(bg);
 
-                  LinearLayout titleRow = new LinearLayout(this);
-                  titleRow.setOrientation(LinearLayout.HORIZONTAL);
-                  titleRow.setGravity(Gravity.CENTER_VERTICAL);
+                  LinearLayout head = new LinearLayout(this);
+                  TextView title = new TextView(this); title.setText("MOUSE"); title.setTextColor(Color.YELLOW);
+                  head.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+                  Button btnX = new Button(this); btnX.setText("ESCI"); btnX.setBackgroundColor(Color.RED); btnX.setTextColor(Color.WHITE);
+                  btnX.setOnClickListener(v -> stopSelf());
+                  head.addView(btnX, new LinearLayout.LayoutParams(dp(80), dp(45)));
+                  panel.addView(head);
 
-                  TextView title = new TextView(this);
-                  title.setText("  Mouse  ");
-                  title.setTextColor(Color.CYAN);
-                  title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-                  LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-                  title.setLayoutParams(titleLp);
-                  titleRow.addView(title);
+                  View tp = new View(this); tp.setBackgroundColor(0xFF444444);
+                  panel.addView(tp, new LinearLayout.LayoutParams(dp(220), dp(150)));
 
-                  Button btnClose = new Button(this);
-                  btnClose.setText("X");
-                  btnClose.setTextColor(Color.WHITE);
-                  btnClose.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-                  btnClose.setAllCaps(false);
-                  btnClose.setPadding(0, 0, 0, 0);
-                  LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(dp(36), dp(36));
-                  btnClose.setLayoutParams(closeLp);
-                  GradientDrawable closeBg = new GradientDrawable();
-                  closeBg.setColor(0xFFCC0000);
-                  closeBg.setCornerRadius(dp(18));
-                  btnClose.setBackground(closeBg);
-                  btnClose.setOnClickListener(v -> stopSelf());
-                  titleRow.addView(btnClose);
-                  panel.addView(titleRow);
+                  LinearLayout btns = new LinearLayout(this);
+                  String[] l = {"CLICK", "DOPPIO", "LUNGO"};
+                  for(int i=0; i<3; i++) {
+                      Button b = new Button(this); b.setText(l[i]);
+                      int finalI = i; b.setOnClickListener(v -> {
+                          MouseAccessibilityService s = MouseAccessibilityService.getInstance();
+                          if(s!=null) {
+                              if(finalI==0) s.performClick(cX, cY);
+                              else if(finalI==1) s.performDoubleClick(cX, cY);
+                              else s.performLongClick(cX, cY);
+                          }
+                      });
+                      btns.addView(b, new LinearLayout.LayoutParams(0, -2, 1f));
+                  }
+                  panel.addView(btns);
 
-                  View trackpad = new View(this);
-                  int tpW = dp(200);
-                  int tpH = dp(140);
-                  LinearLayout.LayoutParams tpLp = new LinearLayout.LayoutParams(tpW, tpH);
-                  tpLp.topMargin = dp(6);
-                  trackpad.setLayoutParams(tpLp);
-                  GradientDrawable tpBg = new GradientDrawable();
-                  tpBg.setColor(0xFF3333AA);
-                  tpBg.setCornerRadius(dp(10));
-                  tpBg.setStroke(dp(1), Color.CYAN);
-                  trackpad.setBackground(tpBg);
-                  panel.addView(trackpad);
-
-                  LinearLayout row = new LinearLayout(this);
-                  row.setOrientation(LinearLayout.HORIZONTAL);
-                  LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
-                      LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
-                  rowLp.topMargin = dp(6);
-                  row.setLayoutParams(rowLp);
-
-                  Button bClick = mkBtn("Click");
-                  Button bDouble = mkBtn("Doppio");
-                  Button bLong = mkBtn("Lungo");
-                  row.addView(bClick);
-                  row.addView(bDouble);
-                  row.addView(bLong);
-                  panel.addView(row);
-
-                  controlParams = new WindowManager.LayoutParams(
-                      WindowManager.LayoutParams.WRAP_CONTENT,
-                      WindowManager.LayoutParams.WRAP_CONTENT,
+                  pParams = new WindowManager.LayoutParams(-2, -2,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                      PixelFormat.TRANSLUCENT);
-                  controlParams.gravity = Gravity.TOP | Gravity.START;
-                  controlParams.x = dp(10);
-                  controlParams.y = screenH - dp(300);
-                  controlView = panel;
-                  wm.addView(panel, controlParams);
+                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                  pParams.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+                  wm.addView(panel, pParams);
+                  panelView = panel;
 
-                  title.setOnTouchListener((v, e) -> {
-                      if (e.getAction() == MotionEvent.ACTION_DOWN) {
-                          v.setTag(new float[]{controlParams.x - e.getRawX(), controlParams.y - e.getRawY()});
-                          return true;
-                      }
-                      if (e.getAction() == MotionEvent.ACTION_MOVE) {
-                          float[] d = (float[]) v.getTag();
-                          controlParams.x = (int)(e.getRawX() + d[0]);
-                          controlParams.y = (int)(e.getRawY() + d[1]);
-                          wm.updateViewLayout(controlView, controlParams);
-                          return true;
+                  tp.setOnTouchListener((v, e) -> {
+                      static float lx, ly;
+                      if(e.getAction()==MotionEvent.ACTION_DOWN) { lx=e.getRawX(); ly=e.getRawY(); return true; }
+                      if(e.getAction()==MotionEvent.ACTION_MOVE) {
+                          cX += (e.getRawX()-lx)*2f; cY += (e.getRawY()-ly)*2f;
+                          cX = Math.max(0, Math.min(cX, sW)); cY = Math.max(0, Math.min(cY, sH));
+                          cParams.x = (int)cX - size/2; cParams.y = (int)cY - size/2;
+                          wm.updateViewLayout(cursorView, cParams);
+                          lx=e.getRawX(); ly=e.getRawY(); return true;
                       }
                       return false;
                   });
-
-                  trackpad.setOnTouchListener((v, e) -> {
-                      if (e.getAction() == MotionEvent.ACTION_DOWN) {
-                          v.setTag(new float[]{e.getRawX(), e.getRawY()});
-                          return true;
-                      }
-                      if (e.getAction() == MotionEvent.ACTION_MOVE) {
-                          float[] l = (float[]) v.getTag();
-                          cursorX += (e.getRawX() - l[0]) * 2.5f;
-                          cursorY += (e.getRawY() - l[1]) * 2.5f;
-                          cursorX = Math.max(40, Math.min(cursorX, screenW - 40));
-                          cursorY = Math.max(40, Math.min(cursorY, screenH - 40));
-                          int size = dp(80);
-                          cursorParams.x = (int) cursorX - size / 2;
-                          cursorParams.y = (int) cursorY - size / 2;
-                          wm.updateViewLayout(cursorView, cursorParams);
-                          v.setTag(new float[]{e.getRawX(), e.getRawY()});
-                          return true;
-                      }
-                      return false;
-                  });
-
-                  bClick.setOnClickListener(v -> doClick(1));
-                  bDouble.setOnClickListener(v -> doClick(2));
-                  bLong.setOnClickListener(v -> doClick(3));
               }
 
-              private void doClick(int type) {
-                  MouseAccessibilityService s = MouseAccessibilityService.getInstance();
-                  if (s == null) return;
-                  if (type == 1) s.performClick(cursorX, cursorY);
-                  else if (type == 2) s.performDoubleClick(cursorX, cursorY);
-                  else s.performLongClick(cursorX, cursorY);
-              }
-
-              private Button mkBtn(String txt) {
-                  Button b = new Button(this);
-                  b.setText(txt);
-                  b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-                  b.setTextColor(Color.WHITE);
-                  b.setAllCaps(false);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1);
-                  lp.setMargins(dp(2), 0, dp(2), 0);
-                  b.setLayoutParams(lp);
-                  GradientDrawable g = new GradientDrawable();
-                  g.setColor(0xFF2244AA);
-                  g.setCornerRadius(dp(8));
-                  b.setBackground(g);
-                  return b;
-              }
-
-              @Override
-              public void onDestroy() {
-                  super.onDestroy();
-                  try { if (cursorView != null) wm.removeView(cursorView); } catch (Exception e) {}
-                  try { if (controlView != null) wm.removeView(controlView); } catch (Exception e) {}
-              }
+              private int dp(int v) { return (int)TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
+              @Override public void onDestroy() { super.onDestroy(); if(cursorView!=null) wm.removeView(cursorView); if(panelView!=null) wm.removeView(panelView); }
           }
           ENDFILE
 
       - name: Build APK
         run: gradle assembleDebug
 
-      - name: Create Release with APK
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v7.0
-          name: MouseSimulator v7 - Mirino Grande
-          body: Mirino gigante rosso e giallo al centro schermo
+          tag_name: v8.0
+          name: MouseSimulator v8
           files: app/build/outputs/apk/debug/app-debug.apk
