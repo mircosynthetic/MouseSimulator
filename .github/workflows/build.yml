@@ -3,6 +3,9 @@ name: Build APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,13 +27,11 @@ jobs:
 
       - name: Generate Project
         run: |
-          # Crea cartelle
           mkdir -p app/src/main/java/com/example/mousesimulator
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/xml
 
-          # settings.gradle
           cat > settings.gradle << 'ENDFILE'
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -43,20 +44,18 @@ jobs:
           include ':app'
           ENDFILE
 
-          # build.gradle root
           cat > build.gradle << 'ENDFILE'
           plugins {
               id 'com.android.application' version '8.1.0' apply false
           }
           ENDFILE
 
-          # gradle.properties
           cat > gradle.properties << 'ENDFILE'
           android.useAndroidX=true
+          android.suppressUnsupportedCompileSdk=34
           org.gradle.jvmargs=-Xmx2048m
           ENDFILE
 
-          # app/build.gradle
           cat > app/build.gradle << 'ENDFILE'
           plugins { id 'com.android.application' }
           android {
@@ -80,7 +79,6 @@ jobs:
           }
           ENDFILE
 
-          # AndroidManifest.xml
           cat > app/src/main/AndroidManifest.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -109,7 +107,6 @@ jobs:
           </manifest>
           ENDFILE
 
-          # accessibility_service_config.xml
           cat > app/src/main/res/xml/accessibility_service_config.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
@@ -122,7 +119,6 @@ jobs:
               android:notificationTimeout="100" />
           ENDFILE
 
-          # strings.xml
           cat > app/src/main/res/values/strings.xml << 'ENDFILE'
           <resources>
               <string name="app_name">Mouse Simulator</string>
@@ -130,7 +126,6 @@ jobs:
           </resources>
           ENDFILE
 
-          # activity_main.xml
           cat > app/src/main/res/layout/activity_main.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -151,7 +146,6 @@ jobs:
           </LinearLayout>
           ENDFILE
 
-          # overlay_layout.xml
           cat > app/src/main/res/layout/overlay_layout.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -195,7 +189,6 @@ jobs:
           </LinearLayout>
           ENDFILE
 
-          # MainActivity.java
           cat > app/src/main/java/com/example/mousesimulator/MainActivity.java << 'ENDFILE'
           package com.example.mousesimulator;
           import android.content.Intent;
@@ -227,7 +220,6 @@ jobs:
           }
           ENDFILE
 
-          # MouseAccessibilityService.java
           cat > app/src/main/java/com/example/mousesimulator/MouseAccessibilityService.java << 'ENDFILE'
           package com.example.mousesimulator;
           import android.accessibilityservice.AccessibilityService;
@@ -263,7 +255,6 @@ jobs:
           }
           ENDFILE
 
-          # MouseOverlayService.java
           cat > app/src/main/java/com/example/mousesimulator/MouseOverlayService.java << 'ENDFILE'
           package com.example.mousesimulator;
           import android.app.Service;
@@ -333,8 +324,10 @@ jobs:
       - name: Build APK
         run: gradle assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Create Release with APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: MouseSimulator-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v1.0
+          name: MouseSimulator APK
+          body: APK pronto per il download
+          files: app/build/outputs/apk/debug/app-debug.apk
