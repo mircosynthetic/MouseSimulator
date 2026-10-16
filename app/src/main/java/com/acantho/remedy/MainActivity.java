@@ -11,6 +11,7 @@ import android.view.Gravity;
 import android.webkit.CookieManager;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -37,21 +38,21 @@ public class MainActivity extends Activity {
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
 
-        // BARRA SUPERIORE
+        // BARRA SUPERIORE (Senza tasto spazio)
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#111827"));
-        topBar.setPadding(10, 8, 10, 8);
+        topBar.setPadding(12, 10, 12, 10);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
-        titleView.setText("ACANTHO");
+        titleView.setText("ACANTHO REMEDY");
         titleView.setTextColor(Color.WHITE);
         titleView.setTextSize(14);
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 LOGIN");
+        credsButton.setText("🔑 CREDENZIALI");
         credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
@@ -60,13 +61,7 @@ public class MainActivity extends Activity {
         fillButton.setText("⚡ COMPILA");
         fillButton.setBackgroundColor(Color.parseColor("#10B981"));
         fillButton.setTextColor(Color.WHITE);
-        fillButton.setOnClickListener(v -> injectFill());
-
-        Button spaceButton = new Button(this);
-        spaceButton.setText("⎵ SPAZIO");
-        spaceButton.setBackgroundColor(Color.parseColor("#F59E0B"));
-        spaceButton.setTextColor(Color.WHITE);
-        spaceButton.setOnClickListener(v -> triggerSpacebar());
+        fillButton.setOnClickListener(v -> injectScript());
 
         Button closeButton = new Button(this);
         closeButton.setText("❌");
@@ -77,7 +72,6 @@ public class MainActivity extends Activity {
         topBar.addView(titleView);
         topBar.addView(credsButton);
         topBar.addView(fillButton);
-        topBar.addView(spaceButton);
         topBar.addView(closeButton);
 
         // WEBVIEW
@@ -104,16 +98,33 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
+        
+        // RISOLUZIONE SCHERMO BIANCO DOPO LOGIN: Gestione popup e nuove finestre aperte da Remedy
         s.setJavaScriptCanOpenWindowsAutomatically(true);
+        s.setSupportMultipleWindows(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        webView.setWebChromeClient(new WebChromeClient());
+        // Reindirizza qualsiasi nuova finestra (window.open) direttamente dentro la stessa WebView
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(view);
+                resultMsg.sendToTarget();
+                return true;
+            }
+        });
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return false;
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return false;
@@ -128,20 +139,17 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 CookieManager.getInstance().flush();
-                injectFill();
-                initSpacebarAutomation();
+                injectScript();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
     }
 
-    private void injectFill() {
+    private void injectScript() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String u = prefs.getString(KEY_USER, "").trim();
         String p = prefs.getString(KEY_PASS, "").trim();
-
-        if (u.isEmpty()) return;
 
         String safeUser = JSONObject.quote(u);
         String safePass = JSONObject.quote(p);
@@ -149,97 +157,68 @@ public class MainActivity extends Activity {
         String js = "(function() {" +
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
+
+                // 1. AUTOCOMPILAZIONE NATIVA
+                "  function setVal(el, val) {" +
+                "    if (!el || !val) return;" +
+                "    if (el.value === val) return;" +
+                "    try {" +
+                "      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;" +
+                "      if (setter) { setter.call(el, val); } else { el.value = val; }" +
+                "    } catch(e) { el.value = val; }" +
+                "    ['input', 'change', 'keydown', 'keyup'].forEach(function(evt) {" +
+                "      try { el.dispatchEvent(new Event(evt, { bubbles: true })); } catch(e){}" +
+                "    });" +
+                "    el.style.border = '2px solid #10B981';" +
+                "  }" +
+
                 "  function processDoc(doc) {" +
                 "    try {" +
-                "      var userInput = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[type=\"text\"]');" +
-                "      var passInput = doc.getElementById('password') || doc.querySelector('input[name=\"password\"]') || doc.querySelector('input[type=\"password\"]');" +
-                "      if (userInput && userInput.value !== userVal) {" +
-                "        userInput.value = userVal;" +
-                "        userInput.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "        userInput.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "        userInput.style.border = '2px solid #10B981';" +
+                "      if (userVal !== '') {" +
+                "        var passInput = doc.querySelector('input[type=\"password\"]') || doc.getElementById('password') || doc.querySelector('input[name*=\"pass\"]');" +
+                "        var userInput = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[id*=\"user\"]');" +
+                "        if (!userInput && passInput) {" +
+                "          userInput = doc.querySelector('input[type=\"text\"]');" +
+                "        }" +
+                "        if (userInput) setVal(userInput, userVal);" +
+                "        if (passInput && passVal !== '') setVal(passInput, passVal);" +
                 "      }" +
-                "      if (passInput && passVal !== '' && passInput.value !== passVal) {" +
-                "        passInput.value = passVal;" +
-                "        passInput.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "        passInput.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "        passInput.style.border = '2px solid #10B981';" +
+
+                // 2. AUTOMAZIONE TAP -> APERTURA TICKET TRAMITE BARRA SPAZIATRICE
+                "      if (!doc.__spaceAttached) {" +
+                "        doc.__spaceAttached = true;" +
+                "        doc.addEventListener('click', function(e) {" +
+                "          var t = e.target;" +
+                "          if (!t) return;" +
+                "          var row = t.closest ? t.closest('tr, td, [role=\"row\"], [role=\"gridcell\"], .Table, .TableData') : null;" +
+                "          if (row) {" +
+                "            setTimeout(function() {" +
+                "              var target = doc.activeElement || t;" +
+                "              var down = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
+                "              var up = new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
+                "              target.dispatchEvent(down);" +
+                "              target.dispatchEvent(up);" +
+                "            }, 200);" +
+                "          }" +
+                "        }, true);" +
                 "      }" +
                 "    } catch(e) {}" +
                 "  }" +
-                "  processDoc(document);" +
-                "  try {" +
-                "    var frames = document.querySelectorAll('iframe, frame');" +
-                "    for (var f = 0; f < frames.length; f++) {" +
-                "      if (frames[f].contentDocument) processDoc(frames[f].contentDocument);" +
-                "    }" +
-                "  } catch(e) {}" +
-                "})();";
 
-        if (webView != null) {
-            webView.evaluateJavascript(js, null);
-        }
-    }
-
-    private void initSpacebarAutomation() {
-        // AUTOMAZIONE: Invia la Barra Spaziatrice al tocco di qualsiasi riga/cella della tabella Remedy
-        String js = "(function() {" +
-                "  if (window.__spaceAutoInit) return;" +
-                "  window.__spaceAutoInit = true;" +
-
-                "  function sendSpace(targetDoc, el) {" +
-                "    var target = el || targetDoc.activeElement || targetDoc.body;" +
-                "    var down = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
-                "    var up = new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
-                "    target.dispatchEvent(down);" +
-                "    target.dispatchEvent(up);" +
-                "  }" +
-
-                "  function attachListener(doc) {" +
-                "    if (doc.__spaceAttached) return;" +
-                "    doc.__spaceAttached = true;" +
-                "    doc.addEventListener('click', function(e) {" +
-                "      var t = e.target;" +
-                "      if (!t) return;" +
-                "      var row = t.closest ? t.closest('tr, td, [role=\"row\"], [role=\"gridcell\"], .Table, .TableData, .selection') : null;" +
-                "      if (row) {" +
-                "        setTimeout(function() { sendSpace(doc, t); }, 200);" +
-                "      }" +
-                "    }, true);" +
-                "  }" +
-
-                "  attachListener(document);" +
-                "  setInterval(function() {" +
+                "  function runCycle() {" +
+                "    processDoc(document);" +
                 "    try {" +
                 "      var frames = document.querySelectorAll('iframe, frame');" +
                 "      for (var f = 0; f < frames.length; f++) {" +
-                "        if (frames[f].contentDocument) attachListener(frames[f].contentDocument);" +
+                "        if (frames[f].contentDocument) processDoc(frames[f].contentDocument);" +
                 "      }" +
                 "    } catch(e) {}" +
-                "  }, 1500);" +
-                "})();";
-
-        if (webView != null) {
-            webView.evaluateJavascript(js, null);
-        }
-    }
-
-    private void triggerSpacebar() {
-        String js = "(function() {" +
-                "  function fireSpace(doc) {" +
-                "    var el = doc.activeElement || doc.body;" +
-                "    var down = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
-                "    var up = new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
-                "    el.dispatchEvent(down);" +
-                "    el.dispatchEvent(up);" +
                 "  }" +
-                "  fireSpace(document);" +
-                "  try {" +
-                "    var frames = document.querySelectorAll('iframe, frame');" +
-                "    for (var f = 0; f < frames.length; f++) {" +
-                "      if (frames[f].contentDocument) fireSpace(frames[f].contentDocument);" +
-                "    }" +
-                "  } catch(e) {}" +
+
+                "  if (!window.__remedyLoop) {" +
+                "    window.__remedyLoop = setInterval(runCycle, 500);" +
+                "  }" +
+                "  runCycle();" +
                 "})();";
 
         if (webView != null) {
