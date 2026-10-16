@@ -47,13 +47,13 @@ public class MainActivity extends Activity {
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
-        titleView.setText("ACANTHO");
+        titleView.setText("ACANTHO REMEDY");
         titleView.setTextColor(Color.WHITE);
         titleView.setTextSize(14);
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 LOGIN");
+        credsButton.setText("🔑 CREDENZIALI");
         credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
@@ -106,7 +106,7 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
-        s.setSupportMultipleWindows(false); // Mantiene tutto nella stessa finestra principale
+        s.setSupportMultipleWindows(true); // Abilitato per catturare i reindirizzamenti di sessione
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -114,10 +114,20 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
+        // Gestione avanzata finestre/popup SSO per evitare blocchi
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(view);
+                resultMsg.sendToTarget();
+                return true;
+            }
+
+            @Override
             public void onCloseWindow(WebView window) {
-                // Impedisce la chiusura dell'app
+                // Se la finestra di login si chiude, ricarica la console principale
+                webView.loadUrl("https://acantho.onbmc.com");
             }
         });
 
@@ -166,13 +176,24 @@ public class MainActivity extends Activity {
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
 
-                // 1. FORZA I POPUP / NUOVE FINESTRE AD APRIRSI NELLA STESSA PAGINA (Evita lo schermo bianco dopo il login)
-                "  if (!window.__windowOpenOverridden) {" +
-                "    window.__windowOpenOverridden = true;" +
-                "    window.open = function(url) {" +
-                "      if (url) { window.location.href = url; }" +
-                "      return window;" +
-                "    };" +
+                // 1. AUTO-REDIRECT DOPO IL LOGIN (Risolve il problema del dover riaprire l'app)
+                "  function setupLoginRedirect(doc) {" +
+                "    try {" +
+                "      var form = doc.querySelector('form#login_form') || doc.querySelector('form');" +
+                "      var btn = doc.querySelector('button[type=\"submit\"]') || doc.querySelector('input[type=\"submit\"]') || doc.querySelector('.d-login-button') || doc.querySelector('button');" +
+                "      if (form && !form.__redirectWatched) {" +
+                "        form.__redirectWatched = true;" +
+                "        form.addEventListener('submit', function() {" +
+                "          setTimeout(function() { window.location.href = 'https://acantho.onbmc.com'; }, 2000);" +
+                "        });" +
+                "      }" +
+                "      if (btn && !btn.__redirectWatched) {" +
+                "        btn.__redirectWatched = true;" +
+                "        btn.addEventListener('click', function() {" +
+                "          setTimeout(function() { window.location.href = 'https://acantho.onbmc.com'; }, 2000);" +
+                "        });" +
+                "      }" +
+                "    } catch(e) {}" +
                 "  }" +
 
                 // 2. AUTOCOMPILAZIONE NOME UTENTE E PASSWORD
@@ -192,6 +213,7 @@ public class MainActivity extends Activity {
 
                 "  function processDoc(doc) {" +
                 "    try {" +
+                "      setupLoginRedirect(doc);" +
                 "      if (userVal !== '') {" +
                 "        var userInput = doc.querySelector('#username input') || " +
                 "                        doc.querySelector('form#login_form #username input') || " +
