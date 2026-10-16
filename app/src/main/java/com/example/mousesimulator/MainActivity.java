@@ -28,14 +28,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Avviso visivo per confermare la nuova versione
-        Toast.makeText(this, "✅ APP AGGIORNATA (Versione 2.1)", Toast.LENGTH_LONG).show();
-
-        // Layout Principale Verticale
+        // Layout principale
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
 
-        // BARRA SUPERIORE (Grigio scuro)
+        // BARRA SUPERIORE
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#1F2937"));
@@ -48,69 +45,48 @@ public class MainActivity extends AppCompatActivity {
         titleView.setTextSize(16);
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
-        // Pulsante "🔑 Credenziali"
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 Credenziali");
-        credsButton.setBackgroundColor(Color.parseColor("#2563EB")); // Blu
+        credsButton.setText("🔑 LOGIN");
+        credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
 
-        // Pulsante "❌ Chiudi"
-        Button closeButton = new Button(this);
-        closeButton.setText("❌");
-        closeButton.setBackgroundColor(Color.parseColor("#DC2626")); // Rosso
-        closeButton.setTextColor(Color.WHITE);
-        closeButton.setOnClickListener(v -> finish());
-
         topBar.addView(titleView);
         topBar.addView(credsButton);
-        topBar.addView(closeButton);
 
-        // WEBVIEW
         webView = new WebView(this);
-        webView.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 
-                LinearLayout.LayoutParams.MATCH_PARENT));
+        webView.setLayoutParams(new LinearLayout.LayoutParams(-1, -1));
 
         mainLayout.addView(topBar);
         mainLayout.addView(webView);
         setContentView(mainLayout);
 
-        setupWebView();
-    }
-
-    private void setupWebView() {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setBuiltInZoomControls(true);
         s.setDisplayZoomControls(false);
-        s.setUseWideViewPort(true);
-        s.setLoadWithOverviewMode(true);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                injectScript();
+                injectAutoLogin();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
+        Toast.makeText(this, "Versione 2.2 Avviata", Toast.LENGTH_SHORT).show();
     }
 
-    private void injectScript() {
+    private void injectAutoLogin() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String u = prefs.getString(KEY_USER, "").replace("'", "\\'");
         String p = prefs.getString(KEY_PASS, "").replace("'", "\\'");
 
         String js = "(function() {" +
-                // 1. FIX DOPPIO CLICK -> TAP SINGOLO (Bordo verde di conferma)
-                "  var fixClicks = function() {" +
+                "  var fix = function() {" +
                 "    document.querySelectorAll('*').forEach(function(e) {" +
                 "      if(e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
                 "        e.setAttribute('data-fixed', 'true');" +
@@ -119,71 +95,40 @@ public class MainActivity extends AppCompatActivity {
                 "      }" +
                 "    });" +
                 "  };" +
-                // 2. AUTO-COMPILAZIONE BMC HELIX SSO
-                "  var autoFill = function() {" +
-                "    var userVal = '" + u + "';" +
-                "    var passVal = '" + p + "';" +
-                "    if (!userVal || !passVal) return;" +
-                "    var uField = document.querySelector('input[name=\"username\"]') || document.getElementById('username') || document.querySelector('input[type=\"text\"]');" +
-                "    var pField = document.querySelector('input[name=\"password\"]') || document.getElementById('password') || document.querySelector('input[type=\"password\"]');" +
-                "    if (uField && pField && uField.value === '') {" +
-                "      uField.value = userVal;" +
-                "      pField.value = passVal;" +
-                "      uField.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      pField.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      uField.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "      pField.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "  var fill = function() {" +
+                "    var ui = document.querySelector('input[name=\"username\"]') || document.getElementById('username');" +
+                "    var pi = document.querySelector('input[name=\"password\"]') || document.getElementById('password');" +
+                "    if(ui && pi && ui.value === '' && '" + u + "' !== '') {" +
+                "      ui.value = '" + u + "';" +
+                "      pi.value = '" + p + "';" +
+                "      ui.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "      pi.dispatchEvent(new Event('input', { bubbles: true }));" +
                 "    }" +
                 "  };" +
-                "  setInterval(fixClicks, 1500);" +
-                "  setInterval(autoFill, 800);" +
+                "  setInterval(fix, 1500);" +
+                "  setInterval(fill, 1000);" +
                 "})();";
-
         webView.evaluateJavascript(js, null);
     }
 
     private void showCredentialsDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Salva Credenziali Remedy");
-
+        builder.setTitle("Imposta Credenziali");
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 30, 50, 10);
-
-        final EditText uInput = new EditText(this);
-        uInput.setHint("Nome utente");
-        uInput.setText(prefs.getString(KEY_USER, ""));
-        layout.addView(uInput);
-
-        final EditText pInput = new EditText(this);
-        pInput.setHint("Password");
-        pInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        pInput.setText(prefs.getString(KEY_PASS, ""));
-        layout.addView(pInput);
-
+        layout.setPadding(50, 40, 50, 10);
+        final EditText uIn = new EditText(this); uIn.setHint("Username");
+        uIn.setText(prefs.getString(KEY_USER, ""));
+        final EditText pIn = new EditText(this); pIn.setHint("Password");
+        pIn.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        pIn.setText(prefs.getString(KEY_PASS, ""));
+        layout.addView(uIn); layout.addView(pIn);
         builder.setView(layout);
-
-        builder.setPositiveButton("Salva e Ricarica", (dialog, which) -> {
-            prefs.edit()
-                .putString(KEY_USER, uInput.getText().toString().trim())
-                .putString(KEY_PASS, pInput.getText().toString().trim())
-                .apply();
-            Toast.makeText(this, "Credenziali salvate!", Toast.LENGTH_SHORT).show();
+        builder.setPositiveButton("Salva", (d, w) -> {
+            prefs.edit().putString(KEY_USER, uIn.getText().toString()).putString(KEY_PASS, pIn.getText().toString()).apply();
             webView.reload();
         });
-
-        builder.setNegativeButton("Annulla", null);
         builder.show();
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
     }
 }
