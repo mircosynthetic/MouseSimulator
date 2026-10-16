@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
 import android.webkit.CookieManager;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -38,7 +39,7 @@ public class MainActivity extends Activity {
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
 
-        // BARRA SUPERIORE (Senza tasto spazio)
+        // BARRA SUPERIORE
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#111827"));
@@ -98,24 +99,19 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
-        
-        // RISOLUZIONE SCHERMO BIANCO DOPO LOGIN: Gestione popup e nuove finestre aperte da Remedy
+        s.setSupportMultipleWindows(false); // Disattiva finestre multiple per evitare crash
         s.setJavaScriptCanOpenWindowsAutomatically(true);
-        s.setSupportMultipleWindows(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // Reindirizza qualsiasi nuova finestra (window.open) direttamente dentro la stessa WebView
+        // RISOLUZIONE CHIUSURA APP: Intercetta e blocca window.close() inviato da BMC Remedy
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
-            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
-                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-                transport.setWebView(view);
-                resultMsg.sendToTarget();
-                return true;
+            public void onCloseWindow(WebView window) {
+                // Svuotato intenzionalmente per impedire che la WebView chiuda l'Activity Android
             }
         });
 
@@ -133,6 +129,12 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 handler.proceed();
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                view.loadUrl("https://acantho.onbmc.com");
+                return true;
             }
 
             @Override
@@ -158,33 +160,43 @@ public class MainActivity extends Activity {
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
 
-                // 1. AUTOCOMPILAZIONE NATIVA
-                "  function setVal(el, val) {" +
+                // 1. AUTOCOMPILAZIONE NOME UTENTE E PASSWORD
+                "  function setInput(el, val) {" +
                 "    if (!el || !val) return;" +
                 "    if (el.value === val) return;" +
                 "    try {" +
-                "      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;" +
-                "      if (setter) { setter.call(el, val); } else { el.value = val; }" +
+                "      el.focus();" +
+                "      el.value = val;" +
+                "      ['input', 'change', 'keyup', 'keydown', 'blur'].forEach(function(evt) {" +
+                "        try { el.dispatchEvent(new Event(evt, { bubbles: true })); } catch(e){}" +
+                "      });" +
+                "      el.style.border = '2px solid #10B981';" +
                 "    } catch(e) { el.value = val; }" +
-                "    ['input', 'change', 'keydown', 'keyup'].forEach(function(evt) {" +
-                "      try { el.dispatchEvent(new Event(evt, { bubbles: true })); } catch(e){}" +
-                "    });" +
-                "    el.style.border = '2px solid #10B981';" +
                 "  }" +
 
                 "  function processDoc(doc) {" +
                 "    try {" +
                 "      if (userVal !== '') {" +
-                "        var passInput = doc.querySelector('input[type=\"password\"]') || doc.getElementById('password') || doc.querySelector('input[name*=\"pass\"]');" +
-                "        var userInput = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[id*=\"user\"]');" +
+                "        var passInput = doc.getElementById('pwd-id') || doc.getElementById('password') || doc.querySelector('input[type=\"password\"]') || doc.querySelector('input[name=\"password\"]');" +
+                "        var userInput = doc.getElementById('username-id') || doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name=\"user\"]') || doc.querySelector('input[id*=\"user\"]');" +
+                
                 "        if (!userInput && passInput) {" +
-                "          userInput = doc.querySelector('input[type=\"text\"]');" +
+                "          var allInputs = doc.querySelectorAll('input');" +
+                "          for (var i = 0; i < allInputs.length; i++) {" +
+                "            var inp = allInputs[i];" +
+                "            var t = (inp.type || 'text').toLowerCase();" +
+                "            if (inp !== passInput && (t === 'text' || t === 'email' || t === '')) {" +
+                "              userInput = inp;" +
+                "              break;" +
+                "            }" +
+                "          }" +
                 "        }" +
-                "        if (userInput) setVal(userInput, userVal);" +
-                "        if (passInput && passVal !== '') setVal(passInput, passVal);" +
+
+                "        if (userInput) setInput(userInput, userVal);" +
+                "        if (passInput && passVal !== '') setInput(passInput, passVal);" +
                 "      }" +
 
-                // 2. AUTOMAZIONE TAP -> APERTURA TICKET TRAMITE BARRA SPAZIATRICE
+                // 2. AUTOMAZIONE TAP -> BARRA SPAZIATRICE PER APERTURA TICKET
                 "      if (!doc.__spaceAttached) {" +
                 "        doc.__spaceAttached = true;" +
                 "        doc.addEventListener('click', function(e) {" +
@@ -216,7 +228,7 @@ public class MainActivity extends Activity {
                 "  }" +
 
                 "  if (!window.__remedyLoop) {" +
-                "    window.__remedyLoop = setInterval(runCycle, 500);" +
+                "    window.__remedyLoop = setInterval(runCycle, 600);" +
                 "  }" +
                 "  runCycle();" +
                 "})();";
