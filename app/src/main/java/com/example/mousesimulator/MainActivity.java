@@ -28,7 +28,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Layout Principale
+        // Layout Principale Verticale
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
 
@@ -36,21 +36,30 @@ public class MainActivity extends Activity {
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#1F2937"));
-        topBar.setPadding(20, 15, 20, 15);
+        topBar.setPadding(15, 10, 15, 10);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
-        titleView.setText("ACANTHO REMEDY");
+        titleView.setText("ACANTHO");
         titleView.setTextColor(Color.WHITE);
-        titleView.setTextSize(16);
+        titleView.setTextSize(15);
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
+        // Tasto Gestione Credenziali
         Button credsButton = new Button(this);
         credsButton.setText("🔑 Credenziali");
         credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
 
+        // Tasto Compilazione Manuale/Forzata
+        Button fillButton = new Button(this);
+        fillButton.setText("⚡ Compila");
+        fillButton.setBackgroundColor(Color.parseColor("#10B981"));
+        fillButton.setTextColor(Color.WHITE);
+        fillButton.setOnClickListener(v -> injectScript());
+
+        // Tasto Chiudi App
         Button closeButton = new Button(this);
         closeButton.setText("❌");
         closeButton.setBackgroundColor(Color.parseColor("#DC2626"));
@@ -59,6 +68,7 @@ public class MainActivity extends Activity {
 
         topBar.addView(titleView);
         topBar.addView(credsButton);
+        topBar.addView(fillButton);
         topBar.addView(closeButton);
 
         // WEBVIEW
@@ -100,10 +110,44 @@ public class MainActivity extends Activity {
 
     private void injectScript() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String u = prefs.getString(KEY_USER, "").replace("'", "\\'");
-        String p = prefs.getString(KEY_PASS, "").replace("'", "\\'");
+        String u = prefs.getString(KEY_USER, "").replace("'", "\\'").replace("\n", "");
+        String p = prefs.getString(KEY_PASS, "").replace("'", "\\'").replace("\n", "");
+
+        if (u.isEmpty() || p.isEmpty()) {
+            Toast.makeText(this, "Salva prima le credenziali dal tasto 🔑!", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         String js = "(function() {" +
+                // Funzione per forzare l'inserimento su framework Angular / React
+                "  function setInputValue(element, value) {" +
+                "    if (!element) return;" +
+                "    element.focus();" +
+                "    var lastValue = element.value;" +
+                "    element.value = value;" +
+                "    var event = new Event('input', { bubbles: true });" +
+                "    var tracker = element._valueTracker;" +
+                "    if (tracker) { tracker.setValue(lastValue); }" +
+                "    element.dispatchEvent(event);" +
+                "    element.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "    element.blur();" +
+                "  }" +
+                // Cerca ed inietta i campi
+                "  var autoFill = function() {" +
+                "    var uVal = '" + u + "';" +
+                "    var pVal = '" + p + "';" +
+                "    var passInput = document.querySelector('input[type=\"password\"]') || document.getElementById('password') || document.querySelector('input[name=\"password\"]');" +
+                "    var userInput = document.getElementById('username') || document.querySelector('input[name=\"username\"]') || document.querySelector('input[placeholder*=\"utente\"]') || document.querySelector('input[type=\"text\"]');" +
+                "    if (userInput && userInput.value !== uVal) {" +
+                "      setInputValue(userInput, uVal);" +
+                "      userInput.style.border = '2px solid #00FF00';" +
+                "    }" +
+                "    if (passInput && passInput.value !== pVal) {" +
+                "      setInputValue(passInput, pVal);" +
+                "      passInput.style.border = '2px solid #00FF00';" +
+                "    }" +
+                "  };" +
+                // Convertitore Doppio Click -> Tap Singolo
                 "  var fixClicks = function() {" +
                 "    document.querySelectorAll('*').forEach(function(e) {" +
                 "      if(e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
@@ -113,23 +157,9 @@ public class MainActivity extends Activity {
                 "      }" +
                 "    });" +
                 "  };" +
-                "  var autoFill = function() {" +
-                "    var userVal = '" + u + "';" +
-                "    var passVal = '" + p + "';" +
-                "    if (!userVal || !passVal) return;" +
-                "    var uField = document.querySelector('input[name=\"username\"]') || document.getElementById('username') || document.querySelector('input[type=\"text\"]');" +
-                "    var pField = document.querySelector('input[name=\"password\"]') || document.getElementById('password') || document.querySelector('input[type=\"password\"]');" +
-                "    if (uField && pField && uField.value === '') {" +
-                "      uField.value = userVal;" +
-                "      pField.value = passVal;" +
-                "      uField.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      pField.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      uField.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "      pField.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "    }" +
-                "  };" +
+                "  autoFill();" +
+                "  setInterval(autoFill, 1000);" +
                 "  setInterval(fixClicks, 1500);" +
-                "  setInterval(autoFill, 800);" +
                 "})();";
 
         webView.evaluateJavascript(js, null);
