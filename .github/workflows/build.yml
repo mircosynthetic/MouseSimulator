@@ -1,4 +1,4 @@
-name: Build Remedy App
+name: Build Remedy Browser
 
 on:
   workflow_dispatch:
@@ -23,8 +23,12 @@ jobs:
           unzip -q /tmp/gradle.zip -d /opt
           echo "/opt/gradle-8.2/bin" >> $GITHUB_PATH
 
-      - name: Generate Project
+      - name: Clean & Generate Project
         run: |
+          # Cancella tutti i vecchi file del mouse per evitare errori AAPT
+          rm -rf app settings.gradle build.gradle gradle.properties
+
+          # Crea le cartelle pulite per la nuova app
           mkdir -p app/src/main/java/com/example/remedybrowser
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
@@ -106,14 +110,14 @@ jobs:
                   settings.setBuiltInZoomControls(true);
                   settings.setDisplayZoomControls(false);
                   
-                  // Imposta User-Agent Desktop Windows per ingannare Remedy
+                  // User-Agent Desktop Windows per ingannare Remedy
                   settings.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
                       public void onPageFinished(WebView view, String url) {
                           super.onPageFinished(view, url);
-                          // Inietta lo script che trasforma il doppio click in singolo tocco
+                          // Converte il doppio click di Remedy in un singolo tocco automatico
                           String js = "javascript:(function() {" +
                                   "var fixRemedy = function() {" +
                                   "  document.querySelectorAll('*').forEach(function(e) {" +
@@ -145,6 +149,7 @@ jobs:
 
       - name: Build APK
         run: gradle assembleDebug
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
