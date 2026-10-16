@@ -7,14 +7,15 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -27,101 +28,80 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Forza un tema senza barra di sistema per evitare conflitti
+        setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light_NoActionBar);
         super.onCreate(savedInstanceState);
 
-        // Layout principale verticale
-        LinearLayout mainLayout = new LinearLayout(this);
-        mainLayout.setOrientation(LinearLayout.VERTICAL);
-        mainLayout.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 
-                LinearLayout.LayoutParams.MATCH_PARENT));
+        // Contenitore principale (FrameLayout per sovrapporre elementi)
+        FrameLayout rootLayout = new FrameLayout(this);
+        rootLayout.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // BARRA SUPERIORE (Forzata altezza 60dp)
-        float scale = getResources().getDisplayMetrics().density;
-        int heightPixels = (int) (60 * scale + 0.5f);
-
-        LinearLayout topBar = new LinearLayout(this);
-        topBar.setOrientation(LinearLayout.HORIZONTAL);
-        topBar.setBackgroundColor(Color.parseColor("#111827")); // Grigio quasi nero
-        topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, heightPixels));
-        topBar.setPadding(20, 0, 20, 0);
-
-        TextView titleView = new TextView(this);
-        titleView.setText("ACANTHO");
-        titleView.setTextColor(Color.WHITE);
-        titleView.setTextSize(18);
-        titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
-
-        // Tasto LOGIN (Blu brillante)
-        Button credsButton = new Button(this);
-        credsButton.setText("IMPOSTA DATI");
-        credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
-        credsButton.setTextColor(Color.WHITE);
-        credsButton.setPadding(20, 0, 20, 0);
-        credsButton.setOnClickListener(v -> showCredentialsDialog());
-
-        // Tasto X (Rosso)
-        Button closeButton = new Button(this);
-        closeButton.setText("X");
-        closeButton.setBackgroundColor(Color.parseColor("#DC2626"));
-        closeButton.setTextColor(Color.WHITE);
-        closeButton.setOnClickListener(v -> finish());
-
-        topBar.addView(titleView);
-        topBar.addView(credsButton);
-        topBar.addView(closeButton);
-
-        // WEBVIEW
+        // 1. WEBVIEW (Sotto tutto)
         webView = new WebView(this);
-        LinearLayout.LayoutParams webViewParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f);
-        webView.setLayoutParams(webViewParams);
+        webView.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        rootLayout.addView(webView);
 
-        mainLayout.addView(topBar);
-        mainLayout.addView(webView);
-        setContentView(mainLayout);
+        // 2. TASTO GALLEGGIANTE "LOGIN" (In basso a destra)
+        Button loginFab = new Button(this);
+        loginFab.setText("🔑");
+        loginFab.setTextSize(24);
+        loginFab.setBackgroundColor(Color.parseColor("#FFCC00")); // Giallo acceso
+        loginFab.setTextColor(Color.BLACK);
+        
+        FrameLayout.LayoutParams fabParams = new FrameLayout.LayoutParams(150, 150);
+        fabParams.gravity = Gravity.BOTTOM | Gravity.END;
+        fabParams.setMargins(0, 0, 50, 200); // Spostato un po' su dal bordo basso
+        loginFab.setLayoutParams(fabParams);
+        
+        loginFab.setOnClickListener(v -> showCredentialsDialog());
+        rootLayout.addView(loginFab);
 
-        configureWebView();
+        // 3. TASTO CHIUDI (In alto a destra, piccolo)
+        Button closeBtn = new Button(this);
+        closeBtn.setText("X");
+        closeBtn.setBackgroundColor(Color.RED);
+        closeBtn.setTextColor(Color.WHITE);
+        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(100, 100);
+        closeParams.gravity = Gravity.TOP | Gravity.END;
+        closeParams.setMargins(0, 50, 50, 0);
+        closeBtn.setLayoutParams(closeParams);
+        closeBtn.setOnClickListener(v -> finish());
+        rootLayout.addView(closeBtn);
+
+        setContentView(rootLayout);
+
+        setupWebView();
     }
 
-    private void configureWebView() {
+    private void setupWebView() {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
-        s.setSupportZoom(true);
         s.setBuiltInZoomControls(true);
         s.setDisplayZoomControls(false);
-        s.setUseWideViewPort(true);
-        s.setLoadWithOverviewMode(true);
-        
-        // Forza User Agent Desktop per evitare layout mobili rotti
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                injectAutoLogin();
+                injectScripts();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
     }
 
-    private void injectAutoLogin() {
+    private void injectScripts() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String u = prefs.getString(KEY_USER, "").replace("'", "\\'");
         String p = prefs.getString(KEY_PASS, "").replace("'", "\\'");
 
-        if (u.isEmpty()) return;
-
+        // Script specifico per i campi che si vedono nel tuo screenshot
         String js = "(function() {" +
-                // 1. FIX DOPPIO CLICK (con bordo verde per test)
+                // FIX DOPPIO CLICK
                 "  var fix = function() {" +
                 "    document.querySelectorAll('*').forEach(function(e) {" +
                 "      if(e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
@@ -131,19 +111,19 @@ public class MainActivity extends AppCompatActivity {
                 "      }" +
                 "    });" +
                 "  };" +
-                // 2. AUTOFILL SPECIFICO PER BMC HELIX SSO (Quello del tuo screenshot)
-                "  var fillSSO = function() {" +
-                "    var userField = document.getElementById('username') || document.querySelector('input[name=\"username\"]');" +
-                "    var passField = document.getElementById('password') || document.querySelector('input[name=\"password\"]');" +
-                "    if(userField && passField && userField.value === '') {" +
-                "      userField.value = '" + u + "';" +
-                "      passField.value = '" + p + "';" +
-                "      userField.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      passField.dispatchEvent(new Event('input', { bubbles: true }));" +
+                // AUTOFILL PER BMC HELIX SSO (Screenshot)
+                "  var fill = function() {" +
+                "    var uField = document.querySelector('input[name=\"username\"]') || document.getElementById('username');" +
+                "    var pField = document.querySelector('input[name=\"password\"]') || document.getElementById('password');" +
+                "    if(uField && pField && uField.value === '') {" +
+                "      uField.value = '" + u + "';" +
+                "      pField.value = '" + p + "';" +
+                "      uField.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "      pField.dispatchEvent(new Event('input', { bubbles: true }));" +
                 "    }" +
                 "  };" +
                 "  setInterval(fix, 1500);" +
-                "  setInterval(fillSSO, 1000);" +
+                "  setInterval(fill, 1000);" +
                 "})();";
 
         webView.evaluateJavascript(js, null);
@@ -152,32 +132,28 @@ public class MainActivity extends AppCompatActivity {
     private void showCredentialsDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Impostazioni Login");
+        builder.setTitle("Configura Login");
 
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 40, 50, 10);
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(60, 40, 60, 20);
 
-        final EditText userIn = new EditText(this);
-        userIn.setHint("Nome Utente");
-        userIn.setText(prefs.getString(KEY_USER, ""));
-        layout.addView(userIn);
+        final EditText uIn = new EditText(this);
+        uIn.setHint("Username");
+        uIn.setText(prefs.getString(KEY_USER, ""));
+        container.addView(uIn);
 
-        final EditText passIn = new EditText(this);
-        passIn.setHint("Password");
-        passIn.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        passIn.setText(prefs.getString(KEY_PASS, ""));
-        layout.addView(passIn);
+        final EditText pIn = new EditText(this);
+        pIn.setHint("Password");
+        pIn.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        pIn.setText(prefs.getString(KEY_PASS, ""));
+        container.addView(pIn);
 
-        builder.setView(layout);
-        builder.setPositiveButton("Salva e Accedi", (d, w) -> {
-            prefs.edit()
-                .putString(KEY_USER, userIn.getText().toString().trim())
-                .putString(KEY_PASS, passIn.getText().toString().trim())
-                .apply();
+        builder.setView(container);
+        builder.setPositiveButton("Salva", (d, w) -> {
+            prefs.edit().putString(KEY_USER, uIn.getText().toString()).putString(KEY_PASS, pIn.getText().toString()).apply();
             webView.reload();
         });
-        builder.setNegativeButton("Annulla", null);
         builder.show();
     }
 }
