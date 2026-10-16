@@ -90,29 +90,34 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
+        
+        // IMPEDISCE IL CRASH PER POPUP/FINESTRE MULTIPLE
+        s.setSupportMultipleWindows(false);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
-        s.setSupportMultipleWindows(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // RISOLVE LO SCHERMO BIANCO: Reindirizza le nuove finestre di Remedy nella stessa WebView
+        // EVITA CHE IL SITO CHIUSI L'APP CON window.close()
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
-            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
-                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-                transport.setWebView(view);
-                resultMsg.sendToTarget();
-                return true;
+            public void onCloseWindow(WebView window) {
+                // Ignora la richiesta di chiusura della finestra inviata da Remedy
             }
         });
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                view.loadUrl(url);
+                return true;
+            }
+
+            @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                handler.proceed(); // Evita blocchi bianchi su certificati interni
+                handler.proceed();
             }
 
             @Override
@@ -135,51 +140,81 @@ public class MainActivity extends Activity {
         String safePass = JSONObject.quote(p);
 
         String js = "(function() {" +
-                "  var u = " + safeUser + ";" +
-                "  var p = " + safePass + ";" +
+                "  var userVal = " + safeUser + ";" +
+                "  var passVal = " + safePass + ";" +
 
-                // 1. AUTOCOMPILAZIONE LOGIN
-                "  function doFill() {" +
-                "    if (!u) return;" +
-                "    var uEl = document.getElementById('username') || document.querySelector('input[name=\"username\"]') || document.querySelector('input[type=\"text\"]');" +
-                "    var pEl = document.getElementById('password') || document.querySelector('input[name=\"password\"]') || document.querySelector('input[type=\"password\"]');" +
-                "    if (uEl && uEl.value !== u) {" +
-                "      uEl.value = u;" +
-                "      uEl.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      uEl.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "    }" +
-                "    if (pEl && p && pEl.value !== p) {" +
-                "      pEl.value = p;" +
-                "      pEl.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      pEl.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "    }" +
-                "  }" +
+                // AUTOCOMPILAZIONE AVANZATA PER BMC HELIX SSO
+                "  function processDoc(doc) {" +
+                "    try {" +
+                "      if (userVal !== '') {" +
+                "        var inputs = doc.querySelectorAll('input');" +
+                "        var userInput = null;" +
+                "        var passInput = null;" +
 
-                // 2. CONVERTITORE SINGOLO TAP PER TICKET
-                "  function fixDblClick() {" +
-                "    var elems = document.querySelectorAll('*');" +
-                "    for (var i = 0; i < elems.length; i++) {" +
-                "      var el = elems[i];" +
-                "      var ondbl = el.getAttribute('ondblclick');" +
-                "      if (ondbl && !el.getAttribute('data-tap-fixed')) {" +
-                "        el.setAttribute('data-tap-fixed', 'true');" +
-                "        el.onclick = function(e) {" +
-                "          var code = this.getAttribute('ondblclick');" +
-                "          if (code) { try { eval(code); } catch(err){} }" +
-                "        };" +
-                "        el.style.borderLeft = '4px solid #00FF00';" +
+                "        for (var i = 0; i < inputs.length; i++) {" +
+                "          var inp = inputs[i];" +
+                "          var type = (inp.type || '').toLowerCase();" +
+                "          var name = (inp.name || '').toLowerCase();" +
+                "          var id = (inp.id || '').toLowerCase();" +
+                "          var ph = (inp.placeholder || '').toLowerCase();" +
+
+                "          if (type === 'password' || name.indexOf('pass') !== -1 || id.indexOf('pass') !== -1) {" +
+                "            passInput = inp;" +
+                "          } else if (type === 'text' || type === 'email' || type === '' || name.indexOf('user') !== -1 || id.indexOf('user') !== -1 || ph.indexOf('utente') !== -1) {" +
+                "            if (!userInput) userInput = inp;" +
+                "          }" +
+                "        }" +
+
+                "        function forceValue(el, val) {" +
+                "          if (!el || !val || el.value === val) return;" +
+                "          try {" +
+                "            el.focus();" +
+                "            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;" +
+                "            if (setter) { setter.call(el, val); } else { el.value = val; }" +
+                "            el.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "            el.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "            el.dispatchEvent(new Event('keydown', { bubbles: true }));" +
+                "            el.dispatchEvent(new Event('keyup', { bubbles: true }));" +
+                "            el.dispatchEvent(new Event('blur', { bubbles: true }));" +
+                "            el.style.border = '2px solid #10B981';" +
+                "          } catch(e) {}" +
+                "        }" +
+
+                "        if (userInput) forceValue(userInput, userVal);" +
+                "        if (passInput && passVal !== '') forceValue(passInput, passVal);" +
                 "      }" +
-                "    }" +
+
+                // FIX SINGOLO TAP PER TICKET (ONDOUBLECLICK)
+                "      var elems = doc.querySelectorAll('*');" +
+                "      for (var j = 0; i < elems.length; j++) {" +
+                "        var el = elems[j];" +
+                "        var ondbl = el.getAttribute('ondblclick');" +
+                "        if (ondbl && !el.getAttribute('data-tap-fixed')) {" +
+                "          el.setAttribute('data-tap-fixed', 'true');" +
+                "          el.onclick = function(e) {" +
+                "            var code = this.getAttribute('ondblclick');" +
+                "            if (code) { try { eval(code); } catch(err){} }" +
+                "          };" +
+                "          el.style.borderLeft = '4px solid #10B981';" +
+                "        }" +
+                "      }" +
+                "    } catch(e) {}" +
                 "  }" +
 
-                "  if (!window.__remedyInterval) {" +
-                "    window.__remedyInterval = setInterval(function() {" +
-                "      doFill();" +
-                "      fixDblClick();" +
-                "    }, 1000);" +
+                "  function runScript() {" +
+                "    processDoc(document);" +
+                "    try {" +
+                "      var frames = document.querySelectorAll('iframe, frame');" +
+                "      for (var f = 0; f < frames.length; f++) {" +
+                "        if (frames[f].contentDocument) processDoc(frames[f].contentDocument);" +
+                "      }" +
+                "    } catch(e) {}" +
                 "  }" +
-                "  doFill();" +
-                "  fixDblClick();" +
+
+                "  if (!window.__remedyTimer) {" +
+                "    window.__remedyTimer = setInterval(runScript, 800);" +
+                "  }" +
+                "  runScript();" +
                 "})();";
 
         if (webView != null) {
