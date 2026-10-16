@@ -97,7 +97,6 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
-        s.setSupportMultipleWindows(false);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -105,18 +104,13 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onCloseWindow(WebView window) {
-                // Previene la chiusura dell'app da parte di Remedy
-            }
-        });
+        webView.setWebChromeClient(new WebChromeClient());
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                view.loadUrl(url);
-                return true;
+                // Permette al motore WebView di gestire nativamente tutti i reindirizzamenti SSO
+                return false;
             }
 
             @Override
@@ -137,8 +131,8 @@ public class MainActivity extends Activity {
 
     private void injectScript() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String u = prefs.getString(KEY_USER, "");
-        String p = prefs.getString(KEY_PASS, "");
+        String u = prefs.getString(KEY_USER, "").trim();
+        String p = prefs.getString(KEY_PASS, "").trim();
 
         String safeUser = JSONObject.quote(u);
         String safePass = JSONObject.quote(p);
@@ -147,9 +141,9 @@ public class MainActivity extends Activity {
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
 
-                "  function fillField(el, val) {" +
+                "  function setInputValue(el, val) {" +
                 "    if (!el || !val) return;" +
-                "    if (el.getAttribute('data-autofilled') === 'true' && el.value === val) return;" +
+                "    if (el.value === val && el.getAttribute('data-autofilled') === 'true') return;" +
                 "    try {" +
                 "      var prototype = Object.getPrototypeOf(el);" +
                 "      var setter = Object.getOwnPropertyDescriptor(prototype, 'value');" +
@@ -162,31 +156,33 @@ public class MainActivity extends Activity {
                 "      el.dispatchEvent(new Event('input', { bubbles: true }));" +
                 "      el.dispatchEvent(new Event('change', { bubbles: true }));" +
                 "      el.style.border = '2px solid #10B981';" +
-                "    } catch(e) {}" +
+                "    } catch(e) {" +
+                "      el.value = val;" +
+                "    }" +
                 "  }" +
 
                 "  function processDoc(doc) {" +
                 "    try {" +
                 "      if (userVal !== '') {" +
-                "        var passInput = doc.querySelector('input[type=\"password\"]') || doc.querySelector('input[name*=\"pass\"]') || doc.getElementById('password');" +
-                "        var userInput = doc.querySelector('input[name=\"username\"]') || doc.getElementById('username') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[id*=\"user\"]');" +
+                "        var passInput = doc.getElementById('password') || doc.querySelector('input[type=\"password\"]') || doc.querySelector('input[name*=\"pass\"]');" +
+                "        var userInput = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[placeholder*=\"utente\"]') || doc.querySelector('input[placeholder*=\"user\"]');" +
                 "        if (!userInput && passInput) {" +
                 "          userInput = doc.querySelector('input[type=\"text\"]');" +
                 "        }" +
-                "        if (userInput && userInput.value !== userVal) fillField(userInput, userVal);" +
-                "        if (passInput && passVal !== '' && passInput.value !== passVal) fillField(passInput, passVal);" +
+                "        if (userInput) setInputValue(userInput, userVal);" +
+                "        if (passInput && passVal !== '') setInputValue(passInput, passVal);" +
                 "      }" +
 
-                // CONVERSIONE SINGOLO TAP PER I TICKET
+                // CONVERSIONE SINGOLO TAP PER TICKET
                 "      var elems = doc.querySelectorAll('[ondblclick]');" +
                 "      for (var i = 0; i < elems.length; i++) {" +
                 "        var el = elems[i];" +
                 "        if (!el.getAttribute('data-tap-fixed')) {" +
                 "          el.setAttribute('data-tap-fixed', 'true');" +
-                "          el.onclick = function(e) {" +
+                "          el.addEventListener('click', function(e) {" +
                 "            var code = this.getAttribute('ondblclick');" +
                 "            if (code) { try { eval(code); } catch(err){} }" +
-                "          };" +
+                "          }, false);" +
                 "          el.style.borderLeft = '4px solid #10B981';" +
                 "        }" +
                 "      }" +
