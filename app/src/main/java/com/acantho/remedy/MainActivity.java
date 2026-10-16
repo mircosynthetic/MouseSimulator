@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Layout Principale Verticale
+        // Layout Principale
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
 
@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
-        s.setSupportMultipleWindows(false); // Disattiva finestre multiple per evitare crash
+        s.setSupportMultipleWindows(false); // Evita l'apertura di popup esterni che chiudono l'app
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -107,11 +107,19 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // RISOLUZIONE CHIUSURA APP: Intercetta e blocca window.close() inviato da BMC Remedy
+        // Blocca la chiusura dell'app generata da window.close() dopo il login
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onCloseWindow(WebView window) {
-                // Svuotato intenzionalmente per impedire che la WebView chiuda l'Activity Android
+                // Impedisce a BMC Remedy di chiudere l'Activity Android
+            }
+
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(view);
+                resultMsg.sendToTarget();
+                return true;
             }
         });
 
@@ -160,14 +168,14 @@ public class MainActivity extends Activity {
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
 
-                // 1. AUTOCOMPILAZIONE NOME UTENTE E PASSWORD
-                "  function setInput(el, val) {" +
+                "  function setInputValue(el, val) {" +
                 "    if (!el || !val) return;" +
-                "    if (el.value === val) return;" +
+                "    if (el.value === val && el.getAttribute('data-autofilled') === 'true') return;" +
                 "    try {" +
-                "      el.focus();" +
-                "      el.value = val;" +
-                "      ['input', 'change', 'keyup', 'keydown', 'blur'].forEach(function(evt) {" +
+                "      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;" +
+                "      if (setter) { setter.call(el, val); } else { el.value = val; }" +
+                "      el.setAttribute('data-autofilled', 'true');" +
+                "      ['input', 'change', 'keydown', 'keyup', 'blur'].forEach(function(evt) {" +
                 "        try { el.dispatchEvent(new Event(evt, { bubbles: true })); } catch(e){}" +
                 "      });" +
                 "      el.style.border = '2px solid #10B981';" +
@@ -177,26 +185,22 @@ public class MainActivity extends Activity {
                 "  function processDoc(doc) {" +
                 "    try {" +
                 "      if (userVal !== '') {" +
-                "        var passInput = doc.getElementById('pwd-id') || doc.getElementById('password') || doc.querySelector('input[type=\"password\"]') || doc.querySelector('input[name=\"password\"]');" +
-                "        var userInput = doc.getElementById('username-id') || doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name=\"user\"]') || doc.querySelector('input[id*=\"user\"]');" +
-                
-                "        if (!userInput && passInput) {" +
-                "          var allInputs = doc.querySelectorAll('input');" +
-                "          for (var i = 0; i < allInputs.length; i++) {" +
-                "            var inp = allInputs[i];" +
-                "            var t = (inp.type || 'text').toLowerCase();" +
-                "            if (inp !== passInput && (t === 'text' || t === 'email' || t === '')) {" +
-                "              userInput = inp;" +
-                "              break;" +
-                "            }" +
-                "          }" +
-                "        }" +
+                // Selettori mirati in base alla struttura HTML fornita nello screenshot
+                "        var userInput = doc.querySelector('#username input') || " +
+                "                        doc.querySelector('form#login_form #username input') || " +
+                "                        doc.querySelector('form#login_form input[name=\"username\"]') || " +
+                "                        doc.getElementById('username-id');" +
 
-                "        if (userInput) setInput(userInput, userVal);" +
-                "        if (passInput && passVal !== '') setInput(passInput, passVal);" +
+                "        var passInput = doc.querySelector('#password input') || " +
+                "                        doc.querySelector('form#login_form #password input') || " +
+                "                        doc.querySelector('form#login_form input[type=\"password\"]') || " +
+                "                        doc.getElementById('pwd-id');" +
+
+                "        if (userInput) setInputValue(userInput, userVal);" +
+                "        if (passInput && passVal !== '') setInputValue(passInput, passVal);" +
                 "      }" +
 
-                // 2. AUTOMAZIONE TAP -> BARRA SPAZIATRICE PER APERTURA TICKET
+                // AUTOMAZIONE BARRA SPAZIATRICE AL TAP SUI TICKET
                 "      if (!doc.__spaceAttached) {" +
                 "        doc.__spaceAttached = true;" +
                 "        doc.addEventListener('click', function(e) {" +
