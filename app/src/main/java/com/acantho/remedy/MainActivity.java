@@ -5,9 +5,8 @@ import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.InputType;
+import android.util.Base64;
 import android.view.Gravity;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
@@ -20,15 +19,14 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.UnsupportedEncodingEncodingException;
+
 public class MainActivity extends Activity {
 
     private WebView webView;
     private static final String PREFS_NAME = "RemedyPrefs";
     private static final String KEY_USER = "username";
     private static final String KEY_PASS = "password";
-
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private Runnable runnableCode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,11 +36,11 @@ public class MainActivity extends Activity {
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
 
-        // BARRA SUPERIORE
+        // BARRA SUPERIORE DEDICATA
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#111827"));
-        topBar.setPadding(15, 12, 15, 12);
+        topBar.setPadding(16, 12, 16, 12);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
@@ -52,7 +50,7 @@ public class MainActivity extends Activity {
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 Credenziali");
+        credsButton.setText("🔑 LOGIN");
         credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
@@ -78,7 +76,6 @@ public class MainActivity extends Activity {
         setContentView(mainLayout);
 
         setupWebView();
-        startContinuousInjection();
     }
 
     private void setupWebView() {
@@ -99,100 +96,122 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // FONDAMENTALE PER EVITARE LO SCHERMO BIANCO
         webView.setWebChromeClient(new WebChromeClient());
-
         webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                view.loadUrl(url);
-                return true;
-            }
-
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 CookieManager.getInstance().flush();
-                injectScript();
+                injectCoreEngine();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
     }
 
-    private void startContinuousInjection() {
-        runnableCode = new Runnable() {
-            @Override
-            public void run() {
-                injectScript();
-                handler.postDelayed(this, 1500);
-            }
-        };
-        handler.post(runnableCode);
-    }
-
-    private void injectScript() {
+    private void injectCoreEngine() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String u = prefs.getString(KEY_USER, "").replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"");
-        String p = prefs.getString(KEY_PASS, "").replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"");
+        String u = prefs.getString(KEY_USER, "");
+        String p = prefs.getString(KEY_PASS, "");
+
+        String uB64 = "";
+        String pB64 = "";
+        try {
+            uB64 = Base64.encodeToString(u.getBytes("UTF-8"), Base64.NO_WRAP);
+            pB64 = Base64.encodeToString(p.getBytes("UTF-8"), Base64.NO_WRAP);
+        } catch (Exception e) {
+            uB64 = "";
+            pB64 = "";
+        }
 
         String js = "(function() {" +
-                "  function fill() {" +
+                "  var uVal = ''; var pVal = '';" +
+                "  try { uVal = decodeURIComponent(escape(atob('" + uB64 + "'))); } catch(e){}" +
+                "  try { pVal = decodeURIComponent(escape(atob('" + pB64 + "'))); } catch(e){}" +
+
+                "  function getDocs() {" +
+                "    var docs = [document];" +
                 "    try {" +
-                "      var u = '" + u + "';" +
-                "      var p = '" + p + "';" +
-                "      if(!u) return;" +
-                "      var docs = [document];" +
                 "      var iframes = document.querySelectorAll('iframe, frame');" +
                 "      for(var i=0; i<iframes.length; i++) {" +
                 "        try { if(iframes[i].contentDocument) docs.push(iframes[i].contentDocument); } catch(e){}" +
                 "      }" +
-                "      docs.forEach(function(doc) {" +
-                "        try {" +
-                "          var uEl = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[type=\"text\"]');" +
-                "          var pEl = doc.getElementById('password') || doc.querySelector('input[name=\"password\"]') || doc.querySelector('input[type=\"password\"]');" +
-                "          if(uEl && uEl.value !== u) {" +
-                "            uEl.value = u;" +
-                "            uEl.dispatchEvent(new Event('input', {bubbles: true}));" +
-                "            uEl.dispatchEvent(new Event('change', {bubbles: true}));" +
-                "            uEl.style.border = '2px solid #00FF00';" +
-                "          }" +
-                "          if(pEl && p && pEl.value !== p) {" +
-                "            pEl.value = p;" +
-                "            pEl.dispatchEvent(new Event('input', {bubbles: true}));" +
-                "            pEl.dispatchEvent(new Event('change', {bubbles: true}));" +
-                "            pEl.style.border = '2px solid #00FF00';" +
-                "          }" +
-                "        } catch(e){}" +
-                "      });" +
                 "    } catch(e){}" +
+                "    return docs;" +
                 "  }" +
-                "  function fixDblClick() {" +
-                "    try {" +
-                "      var docs = [document];" +
-                "      var iframes = document.querySelectorAll('iframe, frame');" +
-                "      for(var i=0; i<iframes.length; i++) {" +
-                "        try { if(iframes[i].contentDocument) docs.push(iframes[i].contentDocument); } catch(e){}" +
+
+                // 1. MOTORE UNIVERSALE SINGLE-TAP -> DOUBLE-CLICK (Sia inline che JS)
+                "  function applyTapEngine(doc) {" +
+                "    if (doc.__tapEngineActive) return;" +
+                "    doc.__tapEngineActive = true;" +
+                "    doc.addEventListener('click', function(e) {" +
+                "      if (e.__isSyntheticDbl) return;" +
+                "      var target = e.target;" +
+                "      if (!target) return;" +
+                "      try {" +
+                "        var dblEvt = new MouseEvent('dblclick', {" +
+                "          bubbles: true," +
+                "          cancelable: true," +
+                "          view: doc.defaultView || window" +
+                "        });" +
+                "        dblEvt.__isSyntheticDbl = true;" +
+                "        target.dispatchEvent(dblEvt);" +
+                "      } catch(err){}" +
+                "      var curr = target;" +
+                "      while (curr && curr !== doc && curr !== doc.body) {" +
+                "        var ondbl = curr.getAttribute && curr.getAttribute('ondblclick');" +
+                "        if (ondbl) {" +
+                "          try { eval(ondbl); } catch(err){}" +
+                "          break;" +
+                "        }" +
+                "        curr = curr.parentElement;" +
                 "      }" +
-                "      docs.forEach(function(doc) {" +
-                "        try {" +
-                "          var elems = doc.querySelectorAll('*');" +
-                "          for(var i=0; i<elems.length; i++) {" +
-                "            var el = elems[i];" +
-                "            if(el.getAttribute && el.getAttribute('ondblclick') && !el.getAttribute('data-fixed')) {" +
-                "              el.setAttribute('data-fixed', 'true');" +
-                "              el.onclick = function(e) {" +
-                "                try { eval(this.getAttribute('ondblclick')); } catch(err){}" +
-                "              };" +
-                "              el.style.borderLeft = '4px solid #00FF00';" +
-                "            }" +
-                "          }" +
-                "        } catch(e){}" +
-                "      });" +
+                "    }, true);" +
+                "  }" +
+
+                // 2. MOTORE DI AUTOCOMPILAZIONE NATIVA (Bypassa Angular/React)
+                "  function setNativeValue(el, val) {" +
+                "    if (!el || !val) return;" +
+                "    try {" +
+                "      var proto = Object.getPrototypeOf(el);" +
+                "      var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;" +
+                "      setter.call(el, val);" +
+                "    } catch(e) {" +
+                "      el.value = val;" +
+                "    }" +
+                "    try {" +
+                "      el.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "      el.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "      el.dispatchEvent(new Event('blur', { bubbles: true }));" +
                 "    } catch(e){}" +
                 "  }" +
-                "  fill();" +
-                "  fixDblClick();" +
+
+                "  function runCycle() {" +
+                "    getDocs().forEach(function(doc) {" +
+                "      applyTapEngine(doc);" +
+                "      if (uVal !== '') {" +
+                "        var passInput = doc.querySelector('input[type=\"password\"]');" +
+                "        var userInput = doc.querySelector('input[name=\"username\"]') || " +
+                "                        doc.getElementById('username') || " +
+                "                        doc.querySelector('input[name*=\"user\"]') || " +
+                "                        doc.querySelector('input[id*=\"user\"]') || " +
+                "                        (passInput ? doc.querySelector('input:not([type=\"password\"]):not([type=\"hidden\"]):not([type=\"submit\"])') : null);" +
+                "        if (userInput && userInput.value !== uVal) {" +
+                "          setNativeValue(userInput, uVal);" +
+                "          userInput.style.border = '2px solid #10B981';" +
+                "        }" +
+                "        if (passInput && pVal !== '' && passInput.value !== pVal) {" +
+                "          setNativeValue(passInput, pVal);" +
+                "          passInput.style.border = '2px solid #10B981';" +
+                "        }" +
+                "      }" +
+                "    });" +
+                "  }" +
+
+                "  if (!window.__remedyInterval) {" +
+                "    window.__remedyInterval = setInterval(runCycle, 600);" +
+                "  }" +
+                "  runCycle();" +
                 "})();";
 
         if (webView != null) {
@@ -211,7 +230,7 @@ public class MainActivity extends Activity {
         layout.setPadding(50, 30, 50, 10);
 
         final EditText uInput = new EditText(this);
-        uInput.setHint("Nome utente");
+        uInput.setHint("Nome utente / Username");
         uInput.setText(prefs.getString(KEY_USER, ""));
         layout.addView(uInput);
 
@@ -223,7 +242,7 @@ public class MainActivity extends Activity {
 
         builder.setView(layout);
 
-        builder.setPositiveButton("Salva e Ricarica", (dialog, which) -> {
+        builder.setPositiveButton("Salva e Accedi", (dialog, which) -> {
             prefs.edit()
                 .putString(KEY_USER, uInput.getText().toString().trim())
                 .putString(KEY_PASS, pInput.getText().toString().trim())
@@ -234,14 +253,6 @@ public class MainActivity extends Activity {
 
         builder.setNegativeButton("Annulla", null);
         builder.show();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (handler != null && runnableCode != null) {
-            handler.removeCallbacks(runnableCode);
-        }
     }
 
     @Override
