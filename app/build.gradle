@@ -1,0 +1,22 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.acantho.remedy'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.acantho.remedy"
+        minSdk 24
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
