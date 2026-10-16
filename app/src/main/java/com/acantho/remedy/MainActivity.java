@@ -33,7 +33,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Layout Principale
+        // Layout Principale Verticale
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
 
@@ -51,7 +51,7 @@ public class MainActivity extends Activity {
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 CREDENZIALI");
+        credsButton.setText("🔑 LOGIN");
         credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
@@ -60,7 +60,7 @@ public class MainActivity extends Activity {
         fillButton.setText("⚡ COMPILA");
         fillButton.setBackgroundColor(Color.parseColor("#10B981"));
         fillButton.setTextColor(Color.WHITE);
-        fillButton.setOnClickListener(v -> injectScript());
+        fillButton.setOnClickListener(v -> injectFillOnce());
 
         Button closeButton = new Button(this);
         closeButton.setText("❌");
@@ -109,8 +109,7 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                // Permette al motore WebView di gestire nativamente tutti i reindirizzamenti SSO
-                return false;
+                return false; // Lascia che WebView gestisca i reindirizzamenti nativamente
             }
 
             @Override
@@ -122,17 +121,24 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 CookieManager.getInstance().flush();
-                injectScript();
+                
+                // Compila i dati una volta sola dopo il caricamento della pagina
+                injectFillOnce();
+                
+                // Attiva la conversione dei doppi click con bordo verde
+                startDblClickFixLoop();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
     }
 
-    private void injectScript() {
+    private void injectFillOnce() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String u = prefs.getString(KEY_USER, "").trim();
         String p = prefs.getString(KEY_PASS, "").trim();
+
+        if (u.isEmpty()) return;
 
         String safeUser = JSONObject.quote(u);
         String safePass = JSONObject.quote(p);
@@ -140,69 +146,63 @@ public class MainActivity extends Activity {
         String js = "(function() {" +
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
-
-                "  function setInputValue(el, val) {" +
-                "    if (!el || !val) return;" +
-                "    if (el.value === val && el.getAttribute('data-autofilled') === 'true') return;" +
+                "  function doFill(doc) {" +
                 "    try {" +
-                "      var prototype = Object.getPrototypeOf(el);" +
-                "      var setter = Object.getOwnPropertyDescriptor(prototype, 'value');" +
-                "      if (setter && setter.set) {" +
-                "        setter.set.call(el, val);" +
-                "      } else {" +
-                "        el.value = val;" +
+                "      var uEl = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[type=\"text\"]');" +
+                "      var pEl = doc.getElementById('password') || doc.querySelector('input[name=\"password\"]') || doc.querySelector('input[type=\"password\"]');" +
+                "      if (uEl) {" +
+                "        uEl.value = userVal;" +
+                "        uEl.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "        uEl.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "        uEl.style.border = '2px solid #10B981';" +
                 "      }" +
-                "      el.setAttribute('data-autofilled', 'true');" +
-                "      el.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "      el.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "      el.style.border = '2px solid #10B981';" +
-                "    } catch(e) {" +
-                "      el.value = val;" +
-                "    }" +
-                "  }" +
-
-                "  function processDoc(doc) {" +
-                "    try {" +
-                "      if (userVal !== '') {" +
-                "        var passInput = doc.getElementById('password') || doc.querySelector('input[type=\"password\"]') || doc.querySelector('input[name*=\"pass\"]');" +
-                "        var userInput = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[placeholder*=\"utente\"]') || doc.querySelector('input[placeholder*=\"user\"]');" +
-                "        if (!userInput && passInput) {" +
-                "          userInput = doc.querySelector('input[type=\"text\"]');" +
-                "        }" +
-                "        if (userInput) setInputValue(userInput, userVal);" +
-                "        if (passInput && passVal !== '') setInputValue(passInput, passVal);" +
-                "      }" +
-
-                // CONVERSIONE SINGOLO TAP PER TICKET
-                "      var elems = doc.querySelectorAll('[ondblclick]');" +
-                "      for (var i = 0; i < elems.length; i++) {" +
-                "        var el = elems[i];" +
-                "        if (!el.getAttribute('data-tap-fixed')) {" +
-                "          el.setAttribute('data-tap-fixed', 'true');" +
-                "          el.addEventListener('click', function(e) {" +
-                "            var code = this.getAttribute('ondblclick');" +
-                "            if (code) { try { eval(code); } catch(err){} }" +
-                "          }, false);" +
-                "          el.style.borderLeft = '4px solid #10B981';" +
-                "        }" +
+                "      if (pEl && passVal !== '') {" +
+                "        pEl.value = passVal;" +
+                "        pEl.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "        pEl.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "        pEl.style.border = '2px solid #10B981';" +
                 "      }" +
                 "    } catch(e) {}" +
                 "  }" +
+                "  doFill(document);" +
+                "  try {" +
+                "    var frames = document.querySelectorAll('iframe, frame');" +
+                "    for (var f = 0; f < frames.length; f++) {" +
+                "      if (frames[f].contentDocument) doFill(frames[f].contentDocument);" +
+                "    }" +
+                "  } catch(e) {}" +
+                "})();";
 
-                "  function runScript() {" +
-                "    processDoc(document);" +
+        if (webView != null) {
+            webView.evaluateJavascript(js, null);
+        }
+    }
+
+    private void startDblClickFixLoop() {
+        // CONVERTITORE ORIGINALE ONDBLCLICK -> ONCLICK (Quello che funzionava con il bordo verde)
+        String js = "(function() {" +
+                "  if (window.__dblClickLoopStarted) return;" +
+                "  window.__dblClickLoopStarted = true;" +
+                "  var fix = function() {" +
                 "    try {" +
+                "      var docs = [document];" +
                 "      var frames = document.querySelectorAll('iframe, frame');" +
                 "      for (var f = 0; f < frames.length; f++) {" +
-                "        if (frames[f].contentDocument) processDoc(frames[f].contentDocument);" +
+                "        try { if (frames[f].contentDocument) docs.push(frames[f].contentDocument); } catch(e){}" +
                 "      }" +
-                "    } catch(e) {}" +
-                "  }" +
-
-                "  if (!window.__remedyTimer) {" +
-                "    window.__remedyTimer = setInterval(runScript, 1000);" +
-                "  }" +
-                "  runScript();" +
+                "      docs.forEach(function(doc) {" +
+                "        doc.querySelectorAll('*').forEach(function(e) {" +
+                "          if (e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
+                "            e.setAttribute('data-fixed', 'true');" +
+                "            e.onclick = function() { eval(this.getAttribute('ondblclick')); };" +
+                "            e.style.borderLeft = '4px solid #00FF00';" +
+                "          }" +
+                "        });" +
+                "      });" +
+                "    } catch(err) {}" +
+                "  };" +
+                "  setInterval(fix, 1500);" +
+                "  fix();" +
                 "})();";
 
         if (webView != null) {
