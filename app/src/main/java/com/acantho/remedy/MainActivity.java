@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#111827"));
-        topBar.setPadding(12, 10, 12, 10);
+        topBar.setPadding(10, 8, 10, 8);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
@@ -60,7 +60,13 @@ public class MainActivity extends Activity {
         fillButton.setText("⚡ COMPILA");
         fillButton.setBackgroundColor(Color.parseColor("#10B981"));
         fillButton.setTextColor(Color.WHITE);
-        fillButton.setOnClickListener(v -> injectFillOnce());
+        fillButton.setOnClickListener(v -> injectFill());
+
+        Button spaceButton = new Button(this);
+        spaceButton.setText("⎵ SPAZIO");
+        spaceButton.setBackgroundColor(Color.parseColor("#F59E0B"));
+        spaceButton.setTextColor(Color.WHITE);
+        spaceButton.setOnClickListener(v -> triggerSpacebar());
 
         Button closeButton = new Button(this);
         closeButton.setText("❌");
@@ -71,6 +77,7 @@ public class MainActivity extends Activity {
         topBar.addView(titleView);
         topBar.addView(credsButton);
         topBar.addView(fillButton);
+        topBar.addView(spaceButton);
         topBar.addView(closeButton);
 
         // WEBVIEW
@@ -109,7 +116,7 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return false; // Lascia che WebView gestisca i reindirizzamenti nativamente
+                return false;
             }
 
             @Override
@@ -121,19 +128,15 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 CookieManager.getInstance().flush();
-                
-                // Compila i dati una volta sola dopo il caricamento della pagina
-                injectFillOnce();
-                
-                // Attiva la conversione dei doppi click con bordo verde
-                startDblClickFixLoop();
+                injectFill();
+                initSpacebarAutomation();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
     }
 
-    private void injectFillOnce() {
+    private void injectFill() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String u = prefs.getString(KEY_USER, "").trim();
         String p = prefs.getString(KEY_PASS, "").trim();
@@ -146,29 +149,29 @@ public class MainActivity extends Activity {
         String js = "(function() {" +
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
-                "  function doFill(doc) {" +
+                "  function processDoc(doc) {" +
                 "    try {" +
-                "      var uEl = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[type=\"text\"]');" +
-                "      var pEl = doc.getElementById('password') || doc.querySelector('input[name=\"password\"]') || doc.querySelector('input[type=\"password\"]');" +
-                "      if (uEl) {" +
-                "        uEl.value = userVal;" +
-                "        uEl.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "        uEl.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "        uEl.style.border = '2px solid #10B981';" +
+                "      var userInput = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[type=\"text\"]');" +
+                "      var passInput = doc.getElementById('password') || doc.querySelector('input[name=\"password\"]') || doc.querySelector('input[type=\"password\"]');" +
+                "      if (userInput && userInput.value !== userVal) {" +
+                "        userInput.value = userVal;" +
+                "        userInput.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "        userInput.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "        userInput.style.border = '2px solid #10B981';" +
                 "      }" +
-                "      if (pEl && passVal !== '') {" +
-                "        pEl.value = passVal;" +
-                "        pEl.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "        pEl.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "        pEl.style.border = '2px solid #10B981';" +
+                "      if (passInput && passVal !== '' && passInput.value !== passVal) {" +
+                "        passInput.value = passVal;" +
+                "        passInput.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "        passInput.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "        passInput.style.border = '2px solid #10B981';" +
                 "      }" +
                 "    } catch(e) {}" +
                 "  }" +
-                "  doFill(document);" +
+                "  processDoc(document);" +
                 "  try {" +
                 "    var frames = document.querySelectorAll('iframe, frame');" +
                 "    for (var f = 0; f < frames.length; f++) {" +
-                "      if (frames[f].contentDocument) doFill(frames[f].contentDocument);" +
+                "      if (frames[f].contentDocument) processDoc(frames[f].contentDocument);" +
                 "    }" +
                 "  } catch(e) {}" +
                 "})();";
@@ -178,31 +181,65 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void startDblClickFixLoop() {
-        // CONVERTITORE ORIGINALE ONDBLCLICK -> ONCLICK (Quello che funzionava con il bordo verde)
+    private void initSpacebarAutomation() {
+        // AUTOMAZIONE: Invia la Barra Spaziatrice al tocco di qualsiasi riga/cella della tabella Remedy
         String js = "(function() {" +
-                "  if (window.__dblClickLoopStarted) return;" +
-                "  window.__dblClickLoopStarted = true;" +
-                "  var fix = function() {" +
+                "  if (window.__spaceAutoInit) return;" +
+                "  window.__spaceAutoInit = true;" +
+
+                "  function sendSpace(targetDoc, el) {" +
+                "    var target = el || targetDoc.activeElement || targetDoc.body;" +
+                "    var down = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
+                "    var up = new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
+                "    target.dispatchEvent(down);" +
+                "    target.dispatchEvent(up);" +
+                "  }" +
+
+                "  function attachListener(doc) {" +
+                "    if (doc.__spaceAttached) return;" +
+                "    doc.__spaceAttached = true;" +
+                "    doc.addEventListener('click', function(e) {" +
+                "      var t = e.target;" +
+                "      if (!t) return;" +
+                "      var row = t.closest ? t.closest('tr, td, [role=\"row\"], [role=\"gridcell\"], .Table, .TableData, .selection') : null;" +
+                "      if (row) {" +
+                "        setTimeout(function() { sendSpace(doc, t); }, 200);" +
+                "      }" +
+                "    }, true);" +
+                "  }" +
+
+                "  attachListener(document);" +
+                "  setInterval(function() {" +
                 "    try {" +
-                "      var docs = [document];" +
                 "      var frames = document.querySelectorAll('iframe, frame');" +
                 "      for (var f = 0; f < frames.length; f++) {" +
-                "        try { if (frames[f].contentDocument) docs.push(frames[f].contentDocument); } catch(e){}" +
+                "        if (frames[f].contentDocument) attachListener(frames[f].contentDocument);" +
                 "      }" +
-                "      docs.forEach(function(doc) {" +
-                "        doc.querySelectorAll('*').forEach(function(e) {" +
-                "          if (e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
-                "            e.setAttribute('data-fixed', 'true');" +
-                "            e.onclick = function() { eval(this.getAttribute('ondblclick')); };" +
-                "            e.style.borderLeft = '4px solid #00FF00';" +
-                "          }" +
-                "        });" +
-                "      });" +
-                "    } catch(err) {}" +
-                "  };" +
-                "  setInterval(fix, 1500);" +
-                "  fix();" +
+                "    } catch(e) {}" +
+                "  }, 1500);" +
+                "})();";
+
+        if (webView != null) {
+            webView.evaluateJavascript(js, null);
+        }
+    }
+
+    private void triggerSpacebar() {
+        String js = "(function() {" +
+                "  function fireSpace(doc) {" +
+                "    var el = doc.activeElement || doc.body;" +
+                "    var down = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
+                "    var up = new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });" +
+                "    el.dispatchEvent(down);" +
+                "    el.dispatchEvent(up);" +
+                "  }" +
+                "  fireSpace(document);" +
+                "  try {" +
+                "    var frames = document.querySelectorAll('iframe, frame');" +
+                "    for (var f = 0; f < frames.length; f++) {" +
+                "      if (frames[f].contentDocument) fireSpace(frames[f].contentDocument);" +
+                "    }" +
+                "  } catch(e) {}" +
                 "})();";
 
         if (webView != null) {
