@@ -19,7 +19,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.UnsupportedEncodingEncodingException;
+import java.io.UnsupportedEncodingException;
 
 public class MainActivity extends Activity {
 
@@ -119,7 +119,7 @@ public class MainActivity extends Activity {
         try {
             uB64 = Base64.encodeToString(u.getBytes("UTF-8"), Base64.NO_WRAP);
             pB64 = Base64.encodeToString(p.getBytes("UTF-8"), Base64.NO_WRAP);
-        } catch (Exception e) {
+        } catch (UnsupportedEncodingException e) {
             uB64 = "";
             pB64 = "";
         }
@@ -140,7 +140,7 @@ public class MainActivity extends Activity {
                 "    return docs;" +
                 "  }" +
 
-                // 1. MOTORE UNIVERSALE SINGLE-TAP -> DOUBLE-CLICK (Sia inline che JS)
+                // 1. MOTORE UNIVERSALE SINGLE-TAP -> DOUBLE-CLICK
                 "  function applyTapEngine(doc) {" +
                 "    if (doc.__tapEngineActive) return;" +
                 "    doc.__tapEngineActive = true;" +
@@ -169,7 +169,7 @@ public class MainActivity extends Activity {
                 "    }, true);" +
                 "  }" +
 
-                // 2. MOTORE DI AUTOCOMPILAZIONE NATIVA (Bypassa Angular/React)
+                // 2. MOTORE DI AUTOCOMPILAZIONE NATIVA
                 "  function setNativeValue(el, val) {" +
                 "    if (!el || !val) return;" +
                 "    try {" +
