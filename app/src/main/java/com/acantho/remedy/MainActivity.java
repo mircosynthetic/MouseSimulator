@@ -43,17 +43,17 @@ public class MainActivity extends Activity {
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#111827"));
-        topBar.setPadding(12, 10, 12, 10);
+        topBar.setPadding(10, 8, 10, 8);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
-        titleView.setText("ACANTHO REMEDY");
+        titleView.setText("ACANTHO");
         titleView.setTextColor(Color.WHITE);
         titleView.setTextSize(14);
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 CREDENZIALI");
+        credsButton.setText("🔑 LOGIN");
         credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
@@ -64,6 +64,12 @@ public class MainActivity extends Activity {
         fillButton.setTextColor(Color.WHITE);
         fillButton.setOnClickListener(v -> injectScript());
 
+        Button reloadButton = new Button(this);
+        reloadButton.setText("🔄");
+        reloadButton.setBackgroundColor(Color.parseColor("#4B5563"));
+        reloadButton.setTextColor(Color.WHITE);
+        reloadButton.setOnClickListener(v -> webView.reload());
+
         Button closeButton = new Button(this);
         closeButton.setText("❌");
         closeButton.setBackgroundColor(Color.parseColor("#DC2626"));
@@ -73,6 +79,7 @@ public class MainActivity extends Activity {
         topBar.addView(titleView);
         topBar.addView(credsButton);
         topBar.addView(fillButton);
+        topBar.addView(reloadButton);
         topBar.addView(closeButton);
 
         // WEBVIEW
@@ -99,7 +106,7 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
-        s.setSupportMultipleWindows(false); // Evita l'apertura di popup esterni che chiudono l'app
+        s.setSupportMultipleWindows(false); // Mantiene tutto nella stessa finestra principale
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -107,19 +114,10 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // Blocca la chiusura dell'app generata da window.close() dopo il login
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onCloseWindow(WebView window) {
-                // Impedisce a BMC Remedy di chiudere l'Activity Android
-            }
-
-            @Override
-            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
-                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-                transport.setWebView(view);
-                resultMsg.sendToTarget();
-                return true;
+                // Impedisce la chiusura dell'app
             }
         });
 
@@ -168,6 +166,16 @@ public class MainActivity extends Activity {
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
 
+                // 1. FORZA I POPUP / NUOVE FINESTRE AD APRIRSI NELLA STESSA PAGINA (Evita lo schermo bianco dopo il login)
+                "  if (!window.__windowOpenOverridden) {" +
+                "    window.__windowOpenOverridden = true;" +
+                "    window.open = function(url) {" +
+                "      if (url) { window.location.href = url; }" +
+                "      return window;" +
+                "    };" +
+                "  }" +
+
+                // 2. AUTOCOMPILAZIONE NOME UTENTE E PASSWORD
                 "  function setInputValue(el, val) {" +
                 "    if (!el || !val) return;" +
                 "    if (el.value === val && el.getAttribute('data-autofilled') === 'true') return;" +
@@ -185,7 +193,6 @@ public class MainActivity extends Activity {
                 "  function processDoc(doc) {" +
                 "    try {" +
                 "      if (userVal !== '') {" +
-                // Selettori mirati in base alla struttura HTML fornita nello screenshot
                 "        var userInput = doc.querySelector('#username input') || " +
                 "                        doc.querySelector('form#login_form #username input') || " +
                 "                        doc.querySelector('form#login_form input[name=\"username\"]') || " +
@@ -200,7 +207,7 @@ public class MainActivity extends Activity {
                 "        if (passInput && passVal !== '') setInputValue(passInput, passVal);" +
                 "      }" +
 
-                // AUTOMAZIONE BARRA SPAZIATRICE AL TAP SUI TICKET
+                // 3. AUTOMAZIONE BARRA SPAZIATRICE AL TAP SUI TICKET
                 "      if (!doc.__spaceAttached) {" +
                 "        doc.__spaceAttached = true;" +
                 "        doc.addEventListener('click', function(e) {" +
