@@ -28,33 +28,38 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Layout principale verticale
+        // Layout principale
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
+        mainLayout.setBackgroundColor(Color.BLACK);
 
-        // Barra Superiore (Toolbar)
+        // Barra Superiore
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
-        topBar.setBackgroundColor(Color.parseColor("#1F2937")); // Grigio scuro
-        topBar.setPadding(16, 16, 16, 16);
+        topBar.setBackgroundColor(Color.parseColor("#2C3E50"));
+        topBar.setPadding(10, 10, 10, 10);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
-        titleView.setText("Acantho Remedy");
+        titleView.setText("ACANTHO");
         titleView.setTextColor(Color.WHITE);
-        titleView.setTextSize(16);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+        titleView.setTextSize(14);
+        titleView.setPadding(20, 0, 20, 0);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
         titleView.setLayoutParams(titleParams);
 
-        // Pulsante Gestione Credenziali
+        // Tasto Credenziali (Blu)
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 Credenziali");
+        credsButton.setText("🔑 LOGIN");
+        credsButton.setBackgroundColor(Color.parseColor("#2980B9"));
+        credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
 
-        // Pulsante Chiudi App
+        // Tasto Chiudi
         Button closeButton = new Button(this);
-        closeButton.setText("❌ Chiudi");
+        closeButton.setText("X");
+        closeButton.setBackgroundColor(Color.parseColor("#C0392B"));
+        closeButton.setTextColor(Color.WHITE);
         closeButton.setOnClickListener(v -> finish());
 
         topBar.addView(titleView);
@@ -63,59 +68,46 @@ public class MainActivity extends AppCompatActivity {
 
         // WebView
         webView = new WebView(this);
-        LinearLayout.LayoutParams webViewParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT);
-        webView.setLayoutParams(webViewParams);
-
+        webView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+        
         mainLayout.addView(topBar);
         mainLayout.addView(webView);
-
         setContentView(mainLayout);
 
-        // Impostazioni WebView
+        setupWebView();
+    }
+
+    private void setupWebView() {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
+        settings.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-        // User-Agent Desktop
-        String desktopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-        settings.setUserAgentString(desktopUA);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // Gestione Cookie persistenti
-        CookieManager cookieManager = CookieManager.getInstance();
-        cookieManager.setAcceptCookie(true);
-        cookieManager.setAcceptThirdPartyCookies(webView, true);
-
-        // WebViewClient con auto-compilazione e fix doppioclick
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                CookieManager.getInstance().flush();
-                injectJavaScript();
+                injectScripts();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
     }
 
-    private void injectJavaScript() {
+    private void injectScripts() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String savedUser = prefs.getString(KEY_USER, "");
-        String savedPass = prefs.getString(KEY_PASS, "");
+        String u = prefs.getString(KEY_USER, "").replace("'", "\\'");
+        String p = prefs.getString(KEY_PASS, "").replace("'", "\\'");
 
-        String safeUser = savedUser.replace("'", "\\'");
-        String safePass = savedPass.replace("'", "\\'");
-
+        // Script che gestisce sia il doppioclick che l'autocompletamento avanzato
         String js = "(function() {" +
-                // 1. Convertitore da Doppio Click a Singolo Tap
-                "  var fixDblClick = function() {" +
+                // 1. FIX DOPPIO CLICK
+                "  var fixClicks = function() {" +
                 "    document.querySelectorAll('*').forEach(function(e) {" +
                 "      if(e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
                 "        e.setAttribute('data-fixed', 'true');" +
@@ -124,37 +116,21 @@ public class MainActivity extends AppCompatActivity {
                 "      }" +
                 "    });" +
                 "  };" +
-                "  setInterval(fixDblClick, 1500);" +
-
-                // 2. Autocompilazione Credenziali
-                "  var fillCredentials = function() {" +
-                "    var u = '" + safeUser + "';" +
-                "    var p = '" + safePass + "';" +
-                "    if (!u || !p) return;" +
-                "    var passInput = document.querySelector('input[type=\"password\"]');" +
-                "    if (passInput) {" +
-                "      var inputs = document.querySelectorAll('input');" +
-                "      var userInput = null;" +
-                "      inputs.forEach(function(i) {" +
-                "        if (i.type === 'text' || i.type === 'email' || !i.type) {" +
-                "          if (i !== passInput && !userInput) userInput = i;" +
-                "        }" +
-                "      });" +
-                "      if (userInput && passInput) {" +
-                "        if (userInput.value !== u) {" +
-                "          userInput.value = u;" +
-                "          userInput.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "          userInput.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "        }" +
-                "        if (passInput.value !== p) {" +
-                "          passInput.value = p;" +
-                "          passInput.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "          passInput.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "        }" +
+                // 2. AUTO-LOGIN REMEDY
+                "  var fillLogin = function() {" +
+                "    var userField = document.getElementById('username-id') || document.querySelector('input[name=\"username\"]') || document.querySelector('input[type=\"text\"]');" +
+                "    var passField = document.getElementById('pwd-id') || document.querySelector('input[type=\"password\"]');" +
+                "    if(userField && passField && '" + u + "' !== '') {" +
+                "      if(userField.value === '') {" +
+                "        userField.value = '" + u + "';" +
+                "        passField.value = '" + p + "';" +
+                "        userField.dispatchEvent(new Event('change'));" +
+                "        passField.dispatchEvent(new Event('change'));" +
                 "      }" +
                 "    }" +
                 "  };" +
-                "  setInterval(fillCredentials, 1000);" +
+                "  setInterval(fixClicks, 1500);" +
+                "  setInterval(fillLogin, 1000);" +
                 "})();";
 
         webView.evaluateJavascript(js, null);
@@ -162,53 +138,37 @@ public class MainActivity extends AppCompatActivity {
 
     private void showCredentialsDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String currentUsers = prefs.getString(KEY_USER, "");
-        String currentPass = prefs.getString(KEY_PASS, "");
-
+        
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Salva Credenziali BMC Remedy");
+        builder.setTitle("Imposta Login Automatico");
 
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 40, 50, 10);
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(40, 20, 40, 20);
 
-        final EditText userInput = new EditText(this);
-        userInput.setHint("Nome Utente / Username");
-        userInput.setText(currentUsers);
-        layout.addView(userInput);
+        final EditText userIn = new EditText(this);
+        userIn.setHint("Username (es. mario.rossi)");
+        userIn.setText(prefs.getString(KEY_USER, ""));
+        
+        final EditText passIn = new EditText(this);
+        passIn.setHint("Password");
+        passIn.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        passIn.setText(prefs.getString(KEY_PASS, ""));
 
-        final EditText passInput = new EditText(this);
-        passInput.setHint("Password");
-        passInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        passInput.setText(currentPass);
-        layout.addView(passInput);
+        container.addView(userIn);
+        container.addView(passIn);
+        builder.setView(container);
 
-        builder.setView(layout);
-
-        builder.setPositiveButton("Salva", (dialog, which) -> {
-            String u = userInput.getText().toString().trim();
-            String p = passInput.getText().toString().trim();
-
-            SharedPreferences.Editor editor = prefs.edit();
-            editor.putString(KEY_USER, u);
-            editor.putString(KEY_PASS, p);
-            editor.apply();
-
-            Toast.makeText(MainActivity.this, "Credenziali salvate!", Toast.LENGTH_SHORT).show();
-            injectJavaScript();
+        builder.setPositiveButton("Salva e Ricarica", (d, w) -> {
+            prefs.edit()
+                .putString(KEY_USER, userIn.getText().toString().trim())
+                .putString(KEY_PASS, passIn.getText().toString().trim())
+                .apply();
+            webView.reload();
+            Toast.makeText(this, "Credenziali salvate. Ricarico pagina...", Toast.LENGTH_SHORT).show();
         });
 
-        builder.setNegativeButton("Annulla", (dialog, which) -> dialog.cancel());
-
+        builder.setNegativeButton("Annulla", null);
         builder.show();
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
     }
 }
