@@ -8,9 +8,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
-import android.util.Base64;
 import android.view.Gravity;
 import android.webkit.CookieManager;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -86,6 +86,8 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
         s.setBuiltInZoomControls(true);
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
@@ -97,10 +99,21 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
+        // FONDAMENTALE PER EVITARE LO SCHERMO BIANCO
+        webView.setWebChromeClient(new WebChromeClient());
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                view.loadUrl(url);
+                return true;
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
-                injectMasterScript();
+                super.onPageFinished(view, url);
+                CookieManager.getInstance().flush();
+                injectScript();
             }
         });
 
@@ -111,72 +124,75 @@ public class MainActivity extends Activity {
         runnableCode = new Runnable() {
             @Override
             public void run() {
-                injectMasterScript();
-                handler.postDelayed(this, 1500); // Esegue la scansione ogni 1.5 secondi
+                injectScript();
+                handler.postDelayed(this, 1500);
             }
         };
         handler.post(runnableCode);
     }
 
-    private void injectMasterScript() {
+    private void injectScript() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String u = prefs.getString(KEY_USER, "");
-        String p = prefs.getString(KEY_PASS, "");
-
-        // Codifica in Base64 per evitare qualsiasi errore con caratteri speciali
-        String uBase64 = Base64.encodeToString(u.getBytes(), Base64.NO_WRAP);
-        String pBase64 = Base64.encodeToString(p.getBytes(), Base64.NO_WRAP);
+        String u = prefs.getString(KEY_USER, "").replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"");
+        String p = prefs.getString(KEY_PASS, "").replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"");
 
         String js = "(function() {" +
-                "  function getDocs() {" +
-                "    var docs = [document];" +
-                "    var iframes = document.querySelectorAll('iframe, frame');" +
-                "    for(var i=0; i<iframes.length; i++) {" +
-                "      try { if(iframes[i].contentDocument) docs.push(iframes[i].contentDocument); } catch(e){}" +
-                "    }" +
-                "    return docs;" +
-                "  }" +
-                // 1. FIX DOPPIO CLICK PER TICKET (Cerca anche negli iFrame!)
-                "  try {" +
-                "    getDocs().forEach(function(doc) {" +
-                "      var elems = doc.querySelectorAll('*');" +
-                "      for(var i=0; i<elems.length; i++) {" +
-                "        var el = elems[i];" +
-                "        if(el.getAttribute && el.getAttribute('ondblclick') && !el.getAttribute('data-tap-fixed')) {" +
-                "          el.setAttribute('data-tap-fixed', 'true');" +
-                "          el.addEventListener('click', function(evt) {" +
-                "            var code = this.getAttribute('ondblclick');" +
-                "            if(code) { eval(code); }" +
-                "          }, false);" +
-                "          el.style.borderLeft = '4px solid #00FF00';" +
-                "        }" +
+                "  function fill() {" +
+                "    try {" +
+                "      var u = '" + u + "';" +
+                "      var p = '" + p + "';" +
+                "      if(!u) return;" +
+                "      var docs = [document];" +
+                "      var iframes = document.querySelectorAll('iframe, frame');" +
+                "      for(var i=0; i<iframes.length; i++) {" +
+                "        try { if(iframes[i].contentDocument) docs.push(iframes[i].contentDocument); } catch(e){}" +
                 "      }" +
-                "    });" +
-                "  } catch(e) {}" +
-
-                // 2. AUTO-LOGIN PER BMC HELIX SSO
-                "  try {" +
-                "    var uVal = decodeURIComponent(escape(atob('" + uBase64 + "')));" +
-                "    var pVal = decodeURIComponent(escape(atob('" + pBase64 + "')));" +
-                "    if (uVal !== '') {" +
-                "      getDocs().forEach(function(doc) {" +
-                "        var userInput = doc.querySelector('input[name=\"username\"]') || doc.getElementById('username') || doc.querySelector('input[type=\"text\"]');" +
-                "        var passInput = doc.querySelector('input[name=\"password\"]') || doc.getElementById('password') || doc.querySelector('input[type=\"password\"]');" +
-                "        if(userInput && userInput.value !== uVal) {" +
-                "          userInput.value = uVal;" +
-                "          userInput.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "          userInput.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "          userInput.style.border = '2px solid #00FF00';" +
-                "        }" +
-                "        if(passInput && pVal !== '' && passInput.value !== pVal) {" +
-                "          passInput.value = pVal;" +
-                "          passInput.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "          passInput.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "          passInput.style.border = '2px solid #00FF00';" +
-                "        }" +
+                "      docs.forEach(function(doc) {" +
+                "        try {" +
+                "          var uEl = doc.getElementById('username') || doc.querySelector('input[name=\"username\"]') || doc.querySelector('input[type=\"text\"]');" +
+                "          var pEl = doc.getElementById('password') || doc.querySelector('input[name=\"password\"]') || doc.querySelector('input[type=\"password\"]');" +
+                "          if(uEl && uEl.value !== u) {" +
+                "            uEl.value = u;" +
+                "            uEl.dispatchEvent(new Event('input', {bubbles: true}));" +
+                "            uEl.dispatchEvent(new Event('change', {bubbles: true}));" +
+                "            uEl.style.border = '2px solid #00FF00';" +
+                "          }" +
+                "          if(pEl && p && pEl.value !== p) {" +
+                "            pEl.value = p;" +
+                "            pEl.dispatchEvent(new Event('input', {bubbles: true}));" +
+                "            pEl.dispatchEvent(new Event('change', {bubbles: true}));" +
+                "            pEl.style.border = '2px solid #00FF00';" +
+                "          }" +
+                "        } catch(e){}" +
                 "      });" +
-                "    }" +
-                "  } catch(e) {}" +
+                "    } catch(e){}" +
+                "  }" +
+                "  function fixDblClick() {" +
+                "    try {" +
+                "      var docs = [document];" +
+                "      var iframes = document.querySelectorAll('iframe, frame');" +
+                "      for(var i=0; i<iframes.length; i++) {" +
+                "        try { if(iframes[i].contentDocument) docs.push(iframes[i].contentDocument); } catch(e){}" +
+                "      }" +
+                "      docs.forEach(function(doc) {" +
+                "        try {" +
+                "          var elems = doc.querySelectorAll('*');" +
+                "          for(var i=0; i<elems.length; i++) {" +
+                "            var el = elems[i];" +
+                "            if(el.getAttribute && el.getAttribute('ondblclick') && !el.getAttribute('data-fixed')) {" +
+                "              el.setAttribute('data-fixed', 'true');" +
+                "              el.onclick = function(e) {" +
+                "                try { eval(this.getAttribute('ondblclick')); } catch(err){}" +
+                "              };" +
+                "              el.style.borderLeft = '4px solid #00FF00';" +
+                "            }" +
+                "          }" +
+                "        } catch(e){}" +
+                "      });" +
+                "    } catch(e){}" +
+                "  }" +
+                "  fill();" +
+                "  fixDblClick();" +
                 "})();";
 
         if (webView != null) {
