@@ -1,170 +1,23 @@
-name: Build Remedy Browser
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
+name: Build APK
+on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
-      - name: Java
+      - name: set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Install Gradle
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip
-          unzip -q /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-8.2/bin" >> $GITHUB_PATH
-
-      - name: Clean & Generate Project
-        run: |
-          rm -rf app settings.gradle build.gradle gradle.properties
-          mkdir -p app/src/main/java/com/example/remedybrowser
-          mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
-          
-          cat > settings.gradle << 'ENDFILE'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          rootProject.name = "RemedyBrowser"
-          include ':app'
-          ENDFILE
-          
-          cat > build.gradle << 'ENDFILE'
-          plugins { id 'com.android.application' version '8.1.0' apply false }
-          ENDFILE
-          
-          cat > gradle.properties << 'ENDFILE'
-          android.useAndroidX=true
-          android.suppressUnsupportedCompileSdk=34
-          ENDFILE
-          
-          cat > app/build.gradle << 'ENDFILE'
-          plugins { id 'com.android.application' }
-          android {
-              namespace 'com.example.remedybrowser'
-              compileSdk 34
-              defaultConfig { applicationId "com.example.remedybrowser"; minSdk 26; targetSdk 34; versionCode ${{ github.run_number }}; versionName "2.${{ github.run_number }}" }
-          }
-          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
-          ENDFILE
-          
-          cat > app/src/main/AndroidManifest.xml << 'ENDFILE'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application android:label="Acantho Remedy" android:usesCleartextTraffic="true" android:theme="@style/Theme.AppCompat.NoActionBar">
-                  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          ENDFILE
-          
-          cat > app/src/main/res/values/strings.xml << 'ENDFILE'
-          <resources> <string name="app_name">Acantho Remedy</string> </resources>
-          ENDFILE
-          
-          cat > app/src/main/res/layout/activity_main.xml << 'ENDFILE'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
-              <WebView android:id="@+id/webview" android:layout_width="match_parent" android:layout_height="match_parent" />
-          </LinearLayout>
-          ENDFILE
-          
-          cat > app/src/main/java/com/example/remedybrowser/MainActivity.java << 'ENDFILE'
-          package com.example.remedybrowser;
-
-          import android.os.Bundle;
-          import android.webkit.CookieManager;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import androidx.appcompat.app.AppCompatActivity;
-
-          public class MainActivity extends AppCompatActivity {
-              private WebView webView;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
-
-                  webView = findViewById(R.id.webview);
-                  WebSettings settings = webView.getSettings();
-                  
-                  // --- ATTIVAZIONE MEMORIA E COOKIE ---
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true); // Fondamentale per ricordare login moderni
-                  settings.setDatabaseEnabled(true);
-                  settings.setSaveFormData(true);
-                  settings.setBuiltInZoomControls(true);
-                  settings.setDisplayZoomControls(false);
-
-                  // Abilita i cookie
-                  CookieManager cookieManager = CookieManager.getInstance();
-                  cookieManager.setAcceptCookie(true);
-                  cookieManager.setAcceptThirdPartyCookies(webView, true);
-
-                  // User-Agent Desktop
-                  settings.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
-                  webView.setWebViewClient(new WebViewClient() {
-                      @Override
-                      public void onPageFinished(WebView view, String url) {
-                          super.onPageFinished(view, url);
-                          
-                          // Sincronizza i cookie per salvarli nel telefono
-                          CookieManager.getInstance().flush();
-
-                          // Script per il tocco singolo sui ticket
-                          String js = "javascript:(function() {" +
-                                  "var fix = function() {" +
-                                  "  document.querySelectorAll('*').forEach(function(e) {" +
-                                  "    if(e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
-                                  "      e.setAttribute('data-fixed', 'true');" +
-                                  "      e.onclick = function() { eval(this.getAttribute('ondblclick')); };" +
-                                  "      e.style.borderLeft = '4px solid #00FF00';" +
-                                  "    }" +
-                                  "  });" +
-                                  "};" +
-                                  "setInterval(fix, 1500);" +
-                                  "})()";
-                          webView.loadUrl(js);
-                      }
-                  });
-
-                  webView.loadUrl("https://acantho.onbmc.com");
-              }
-
-              @Override
-              public void onBackPressed() {
-                  if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
-              }
-          }
-          ENDFILE
-
-      - name: Build APK
-        run: gradle assembleDebug
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+          cache: gradle
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug --stacktrace
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v2.${{ github.run_number }}
-          name: Acantho Remedy con Memoria Build ${{ github.run_number }}
-          files: app/build/outputs/apk/debug/app-debug.apk
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
