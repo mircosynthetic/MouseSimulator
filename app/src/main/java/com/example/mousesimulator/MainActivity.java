@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -28,37 +29,43 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Layout principale
+        // Layout principale verticale
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
-        mainLayout.setBackgroundColor(Color.BLACK);
+        mainLayout.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 
+                LinearLayout.LayoutParams.MATCH_PARENT));
 
-        // Barra Superiore
+        // BARRA SUPERIORE (Forzata altezza 60dp)
+        float scale = getResources().getDisplayMetrics().density;
+        int heightPixels = (int) (60 * scale + 0.5f);
+
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
-        topBar.setBackgroundColor(Color.parseColor("#2C3E50"));
-        topBar.setPadding(10, 10, 10, 10);
+        topBar.setBackgroundColor(Color.parseColor("#111827")); // Grigio quasi nero
         topBar.setGravity(Gravity.CENTER_VERTICAL);
+        topBar.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, heightPixels));
+        topBar.setPadding(20, 0, 20, 0);
 
         TextView titleView = new TextView(this);
         titleView.setText("ACANTHO");
         titleView.setTextColor(Color.WHITE);
-        titleView.setTextSize(14);
-        titleView.setPadding(20, 0, 20, 0);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
-        titleView.setLayoutParams(titleParams);
+        titleView.setTextSize(18);
+        titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
-        // Tasto Credenziali (Blu)
+        // Tasto LOGIN (Blu brillante)
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 LOGIN");
-        credsButton.setBackgroundColor(Color.parseColor("#2980B9"));
+        credsButton.setText("IMPOSTA DATI");
+        credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
+        credsButton.setPadding(20, 0, 20, 0);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
 
-        // Tasto Chiudi
+        // Tasto X (Rosso)
         Button closeButton = new Button(this);
         closeButton.setText("X");
-        closeButton.setBackgroundColor(Color.parseColor("#C0392B"));
+        closeButton.setBackgroundColor(Color.parseColor("#DC2626"));
         closeButton.setTextColor(Color.WHITE);
         closeButton.setOnClickListener(v -> finish());
 
@@ -66,25 +73,32 @@ public class MainActivity extends AppCompatActivity {
         topBar.addView(credsButton);
         topBar.addView(closeButton);
 
-        // WebView
+        // WEBVIEW
         webView = new WebView(this);
-        webView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
-        
+        LinearLayout.LayoutParams webViewParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f);
+        webView.setLayoutParams(webViewParams);
+
         mainLayout.addView(topBar);
         mainLayout.addView(webView);
         setContentView(mainLayout);
 
-        setupWebView();
+        configureWebView();
     }
 
-    private void setupWebView() {
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        settings.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    private void configureWebView() {
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+        s.setSupportZoom(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(true);
+        
+        // Forza User Agent Desktop per evitare layout mobili rotti
+        s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
@@ -92,45 +106,44 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                injectScripts();
+                injectAutoLogin();
             }
         });
 
         webView.loadUrl("https://acantho.onbmc.com");
     }
 
-    private void injectScripts() {
+    private void injectAutoLogin() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String u = prefs.getString(KEY_USER, "").replace("'", "\\'");
         String p = prefs.getString(KEY_PASS, "").replace("'", "\\'");
 
-        // Script che gestisce sia il doppioclick che l'autocompletamento avanzato
+        if (u.isEmpty()) return;
+
         String js = "(function() {" +
-                // 1. FIX DOPPIO CLICK
-                "  var fixClicks = function() {" +
+                // 1. FIX DOPPIO CLICK (con bordo verde per test)
+                "  var fix = function() {" +
                 "    document.querySelectorAll('*').forEach(function(e) {" +
                 "      if(e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
                 "        e.setAttribute('data-fixed', 'true');" +
                 "        e.onclick = function() { eval(this.getAttribute('ondblclick')); };" +
-                "        e.style.borderLeft = '4px solid #00FF00';" +
+                "        e.style.borderLeft = '3px solid #00FF00';" +
                 "      }" +
                 "    });" +
                 "  };" +
-                // 2. AUTO-LOGIN REMEDY
-                "  var fillLogin = function() {" +
-                "    var userField = document.getElementById('username-id') || document.querySelector('input[name=\"username\"]') || document.querySelector('input[type=\"text\"]');" +
-                "    var passField = document.getElementById('pwd-id') || document.querySelector('input[type=\"password\"]');" +
-                "    if(userField && passField && '" + u + "' !== '') {" +
-                "      if(userField.value === '') {" +
-                "        userField.value = '" + u + "';" +
-                "        passField.value = '" + p + "';" +
-                "        userField.dispatchEvent(new Event('change'));" +
-                "        passField.dispatchEvent(new Event('change'));" +
-                "      }" +
+                // 2. AUTOFILL SPECIFICO PER BMC HELIX SSO (Quello del tuo screenshot)
+                "  var fillSSO = function() {" +
+                "    var userField = document.getElementById('username') || document.querySelector('input[name=\"username\"]');" +
+                "    var passField = document.getElementById('password') || document.querySelector('input[name=\"password\"]');" +
+                "    if(userField && passField && userField.value === '') {" +
+                "      userField.value = '" + u + "';" +
+                "      passField.value = '" + p + "';" +
+                "      userField.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "      passField.dispatchEvent(new Event('input', { bubbles: true }));" +
                 "    }" +
                 "  };" +
-                "  setInterval(fixClicks, 1500);" +
-                "  setInterval(fillLogin, 1000);" +
+                "  setInterval(fix, 1500);" +
+                "  setInterval(fillSSO, 1000);" +
                 "})();";
 
         webView.evaluateJavascript(js, null);
@@ -138,36 +151,32 @@ public class MainActivity extends AppCompatActivity {
 
     private void showCredentialsDialog() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Imposta Login Automatico");
+        builder.setTitle("Impostazioni Login");
 
-        LinearLayout container = new LinearLayout(this);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(40, 20, 40, 20);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
 
         final EditText userIn = new EditText(this);
-        userIn.setHint("Username (es. mario.rossi)");
+        userIn.setHint("Nome Utente");
         userIn.setText(prefs.getString(KEY_USER, ""));
-        
+        layout.addView(userIn);
+
         final EditText passIn = new EditText(this);
         passIn.setHint("Password");
         passIn.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         passIn.setText(prefs.getString(KEY_PASS, ""));
+        layout.addView(passIn);
 
-        container.addView(userIn);
-        container.addView(passIn);
-        builder.setView(container);
-
-        builder.setPositiveButton("Salva e Ricarica", (d, w) -> {
+        builder.setView(layout);
+        builder.setPositiveButton("Salva e Accedi", (d, w) -> {
             prefs.edit()
                 .putString(KEY_USER, userIn.getText().toString().trim())
                 .putString(KEY_PASS, passIn.getText().toString().trim())
                 .apply();
             webView.reload();
-            Toast.makeText(this, "Credenziali salvate. Ricarico pagina...", Toast.LENGTH_SHORT).show();
         });
-
         builder.setNegativeButton("Annulla", null);
         builder.show();
     }
