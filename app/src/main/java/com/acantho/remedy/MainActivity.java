@@ -41,20 +41,26 @@ public class MainActivity extends Activity {
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setBackgroundColor(Color.parseColor("#111827"));
-        topBar.setPadding(16, 12, 16, 12);
+        topBar.setPadding(12, 10, 12, 10);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView titleView = new TextView(this);
-        titleView.setText("ACANTHO REMEDY");
+        titleView.setText("ACANTHO");
         titleView.setTextColor(Color.WHITE);
-        titleView.setTextSize(15);
+        titleView.setTextSize(14);
         titleView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
 
         Button credsButton = new Button(this);
-        credsButton.setText("🔑 LOGIN");
+        credsButton.setText("🔑 CREDENZIALI");
         credsButton.setBackgroundColor(Color.parseColor("#2563EB"));
         credsButton.setTextColor(Color.WHITE);
         credsButton.setOnClickListener(v -> showCredentialsDialog());
+
+        Button fillButton = new Button(this);
+        fillButton.setText("⚡ COMPILA");
+        fillButton.setBackgroundColor(Color.parseColor("#10B981"));
+        fillButton.setTextColor(Color.WHITE);
+        fillButton.setOnClickListener(v -> injectScript());
 
         Button closeButton = new Button(this);
         closeButton.setText("❌");
@@ -64,6 +70,7 @@ public class MainActivity extends Activity {
 
         topBar.addView(titleView);
         topBar.addView(credsButton);
+        topBar.addView(fillButton);
         topBar.addView(closeButton);
 
         // WEBVIEW
@@ -90,8 +97,6 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
-        
-        // IMPEDISCE IL CRASH PER POPUP/FINESTRE MULTIPLE
         s.setSupportMultipleWindows(false);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
@@ -100,11 +105,10 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // EVITA CHE IL SITO CHIUSI L'APP CON window.close()
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onCloseWindow(WebView window) {
-                // Ignora la richiesta di chiusura della finestra inviata da Remedy
+                // Previene la chiusura dell'app da parte di Remedy
             }
         });
 
@@ -143,53 +147,41 @@ public class MainActivity extends Activity {
                 "  var userVal = " + safeUser + ";" +
                 "  var passVal = " + safePass + ";" +
 
-                // AUTOCOMPILAZIONE AVANZATA PER BMC HELIX SSO
+                "  function fillField(el, val) {" +
+                "    if (!el || !val) return;" +
+                "    if (el.getAttribute('data-autofilled') === 'true' && el.value === val) return;" +
+                "    try {" +
+                "      var prototype = Object.getPrototypeOf(el);" +
+                "      var setter = Object.getOwnPropertyDescriptor(prototype, 'value');" +
+                "      if (setter && setter.set) {" +
+                "        setter.set.call(el, val);" +
+                "      } else {" +
+                "        el.value = val;" +
+                "      }" +
+                "      el.setAttribute('data-autofilled', 'true');" +
+                "      el.dispatchEvent(new Event('input', { bubbles: true }));" +
+                "      el.dispatchEvent(new Event('change', { bubbles: true }));" +
+                "      el.style.border = '2px solid #10B981';" +
+                "    } catch(e) {}" +
+                "  }" +
+
                 "  function processDoc(doc) {" +
                 "    try {" +
                 "      if (userVal !== '') {" +
-                "        var inputs = doc.querySelectorAll('input');" +
-                "        var userInput = null;" +
-                "        var passInput = null;" +
-
-                "        for (var i = 0; i < inputs.length; i++) {" +
-                "          var inp = inputs[i];" +
-                "          var type = (inp.type || '').toLowerCase();" +
-                "          var name = (inp.name || '').toLowerCase();" +
-                "          var id = (inp.id || '').toLowerCase();" +
-                "          var ph = (inp.placeholder || '').toLowerCase();" +
-
-                "          if (type === 'password' || name.indexOf('pass') !== -1 || id.indexOf('pass') !== -1) {" +
-                "            passInput = inp;" +
-                "          } else if (type === 'text' || type === 'email' || type === '' || name.indexOf('user') !== -1 || id.indexOf('user') !== -1 || ph.indexOf('utente') !== -1) {" +
-                "            if (!userInput) userInput = inp;" +
-                "          }" +
+                "        var passInput = doc.querySelector('input[type=\"password\"]') || doc.querySelector('input[name*=\"pass\"]') || doc.getElementById('password');" +
+                "        var userInput = doc.querySelector('input[name=\"username\"]') || doc.getElementById('username') || doc.querySelector('input[name*=\"user\"]') || doc.querySelector('input[id*=\"user\"]');" +
+                "        if (!userInput && passInput) {" +
+                "          userInput = doc.querySelector('input[type=\"text\"]');" +
                 "        }" +
-
-                "        function forceValue(el, val) {" +
-                "          if (!el || !val || el.value === val) return;" +
-                "          try {" +
-                "            el.focus();" +
-                "            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;" +
-                "            if (setter) { setter.call(el, val); } else { el.value = val; }" +
-                "            el.dispatchEvent(new Event('input', { bubbles: true }));" +
-                "            el.dispatchEvent(new Event('change', { bubbles: true }));" +
-                "            el.dispatchEvent(new Event('keydown', { bubbles: true }));" +
-                "            el.dispatchEvent(new Event('keyup', { bubbles: true }));" +
-                "            el.dispatchEvent(new Event('blur', { bubbles: true }));" +
-                "            el.style.border = '2px solid #10B981';" +
-                "          } catch(e) {}" +
-                "        }" +
-
-                "        if (userInput) forceValue(userInput, userVal);" +
-                "        if (passInput && passVal !== '') forceValue(passInput, passVal);" +
+                "        if (userInput && userInput.value !== userVal) fillField(userInput, userVal);" +
+                "        if (passInput && passVal !== '' && passInput.value !== passVal) fillField(passInput, passVal);" +
                 "      }" +
 
-                // FIX SINGOLO TAP PER TICKET (ONDOUBLECLICK)
-                "      var elems = doc.querySelectorAll('*');" +
-                "      for (var j = 0; i < elems.length; j++) {" +
-                "        var el = elems[j];" +
-                "        var ondbl = el.getAttribute('ondblclick');" +
-                "        if (ondbl && !el.getAttribute('data-tap-fixed')) {" +
+                // CONVERSIONE SINGOLO TAP PER I TICKET
+                "      var elems = doc.querySelectorAll('[ondblclick]');" +
+                "      for (var i = 0; i < elems.length; i++) {" +
+                "        var el = elems[i];" +
+                "        if (!el.getAttribute('data-tap-fixed')) {" +
                 "          el.setAttribute('data-tap-fixed', 'true');" +
                 "          el.onclick = function(e) {" +
                 "            var code = this.getAttribute('ondblclick');" +
@@ -212,7 +204,7 @@ public class MainActivity extends Activity {
                 "  }" +
 
                 "  if (!window.__remedyTimer) {" +
-                "    window.__remedyTimer = setInterval(runScript, 800);" +
+                "    window.__remedyTimer = setInterval(runScript, 1000);" +
                 "  }" +
                 "  runScript();" +
                 "})();";
