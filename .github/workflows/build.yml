@@ -25,40 +25,32 @@ jobs:
 
       - name: Clean & Generate Project
         run: |
-          # Cancella tutti i vecchi file del mouse per evitare errori AAPT
           rm -rf app settings.gradle build.gradle gradle.properties
-
-          # Crea le cartelle pulite per la nuova app
           mkdir -p app/src/main/java/com/example/remedybrowser
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
-
           cat > settings.gradle << 'ENDFILE'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
           dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           rootProject.name = "RemedyBrowser"
           include ':app'
           ENDFILE
-
           cat > build.gradle << 'ENDFILE'
           plugins { id 'com.android.application' version '8.1.0' apply false }
           ENDFILE
-
           cat > gradle.properties << 'ENDFILE'
           android.useAndroidX=true
           android.suppressUnsupportedCompileSdk=34
           ENDFILE
-
           cat > app/build.gradle << 'ENDFILE'
           plugins { id 'com.android.application' }
           android {
               namespace 'com.example.remedybrowser'
               compileSdk 34
-              defaultConfig { applicationId "com.example.remedybrowser"; minSdk 26; targetSdk 34; versionCode 1; versionName "1.0" }
+              defaultConfig { applicationId "com.example.remedybrowser"; minSdk 26; targetSdk 34; versionCode ${{ github.run_number }}; versionName "1.${{ github.run_number }}" }
           }
           dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
           ENDFILE
-
           cat > app/src/main/AndroidManifest.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -73,11 +65,9 @@ jobs:
               </application>
           </manifest>
           ENDFILE
-
           cat > app/src/main/res/values/strings.xml << 'ENDFILE'
           <resources> <string name="app_name">Acantho Remedy</string> </resources>
           ENDFILE
-
           cat > app/src/main/res/layout/activity_main.xml << 'ENDFILE'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -85,64 +75,44 @@ jobs:
               <WebView android:id="@+id/webview" android:layout_width="match_parent" android:layout_height="match_parent" />
           </LinearLayout>
           ENDFILE
-
           cat > app/src/main/java/com/example/remedybrowser/MainActivity.java << 'ENDFILE'
           package com.example.remedybrowser;
-
           import android.os.Bundle;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
           import androidx.appcompat.app.AppCompatActivity;
-
           public class MainActivity extends AppCompatActivity {
-              private WebView webView;
-
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
-
-                  webView = findViewById(R.id.webview);
+                  WebView webView = findViewById(R.id.webview);
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
                   settings.setBuiltInZoomControls(true);
                   settings.setDisplayZoomControls(false);
-                  
-                  // User-Agent Desktop Windows per ingannare Remedy
                   settings.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
                       public void onPageFinished(WebView view, String url) {
-                          super.onPageFinished(view, url);
-                          // Converte il doppio click di Remedy in un singolo tocco automatico
                           String js = "javascript:(function() {" +
-                                  "var fixRemedy = function() {" +
+                                  "var fix = function() {" +
                                   "  document.querySelectorAll('*').forEach(function(e) {" +
                                   "    if(e.getAttribute('ondblclick') && !e.getAttribute('data-fixed')) {" +
                                   "      e.setAttribute('data-fixed', 'true');" +
                                   "      e.onclick = function() { eval(this.getAttribute('ondblclick')); };" +
+                                  "      e.style.borderLeft = '4px solid #00FF00';" +
                                   "    }" +
                                   "  });" +
                                   "};" +
-                                  "setInterval(fixRemedy, 1000);" +
+                                  "setInterval(fix, 1500);" +
                                   "})()";
                           webView.loadUrl(js);
                       }
                   });
-
                   webView.loadUrl("https://acantho.onbmc.com");
-              }
-
-              @Override
-              public void onBackPressed() {
-                  if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
               }
           }
           ENDFILE
@@ -150,9 +120,9 @@ jobs:
       - name: Build APK
         run: gradle assembleDebug
 
-      - name: Create Release
+      - name: Create Unique Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0
-          name: Acantho Remedy Browser
+          tag_name: v${{ github.run_number }}
+          name: Acantho Remedy Build ${{ github.run_number }}
           files: app/build/outputs/apk/debug/app-debug.apk
