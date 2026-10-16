@@ -4,6 +4,4 @@
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault"
     android:canPerformGestures="true"
-    android:canRetrieveWindowContent="false"
-    android:description="Simula click mouse"
     android:notificationTimeout="100" />
